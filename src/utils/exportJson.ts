@@ -37,8 +37,6 @@ export function buildExportPayload(
 /** Export building data as JSON: log to console and trigger download */
 export function downloadJson(payload: ExportPayload): void {
   const json = JSON.stringify(payload, null, 2);
-  console.log('=== Indoor Mapping JSON Export ===');
-  console.log(json);
 
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

@@ -37,7 +37,6 @@ export function useEntrance() {
         return;
       }
       const data = await resp.json();
-      console.log('[Entrance] Geocoding response:', JSON.stringify(data, null, 2));
 
       const points: EntrancePoint[] = [];
 
@@ -75,7 +74,6 @@ export function useEntrance() {
       if (data.features?.length) {
         for (const feature of data.features) {
           const routablePoints = extractRoutablePoints(feature);
-          console.log('[Entrance] Routable points:', routablePoints);
 
           for (const rp of routablePoints) {
             // Match "entrance" or names containing "entrance"
@@ -101,8 +99,6 @@ export function useEntrance() {
           }
         }
       }
-
-      console.log('[Entrance] Parsed entrance points:', points);
 
       setEntranceData(points);
     } catch (err) {
