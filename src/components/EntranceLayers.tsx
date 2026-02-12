@@ -77,31 +77,17 @@ export default function EntranceLayers() {
   }, [entranceData, entranceVisible]);
 
   return (
-    <>
-      <Source id={SOURCE_ID} type="geojson" data={geojson}>
-        <Layer
-          id={LAYER_ID}
-          type="symbol"
-          layout={{
-            'icon-image': ICON_ID,
-            'icon-size': 0.15,
-            'icon-allow-overlap': true,
-            'icon-anchor': 'bottom',
-          }}
-        />
-      </Source>
-
-      {/* Legend overlay — only visible when entrance markers are shown */}
-      {entranceVisible && (
-        <div className="entrance-legend">
-          <img
-            src={`${import.meta.env.BASE_URL}entrance-icon.png`}
-            alt="Entrance"
-            className="entrance-legend-icon"
-          />
-          <span>Entrance</span>
-        </div>
-      )}
-    </>
+    <Source id={SOURCE_ID} type="geojson" data={geojson}>
+      <Layer
+        id={LAYER_ID}
+        type="symbol"
+        layout={{
+          'icon-image': ICON_ID,
+          'icon-size': 0.15,
+          'icon-allow-overlap': true,
+          'icon-anchor': 'bottom',
+        }}
+      />
+    </Source>
   );
 }

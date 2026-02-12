@@ -324,31 +324,40 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 
-/* ===== Entrance Legend ===== */
+/* ===== Entrance Legend (below left panel) ===== */
 .entrance-legend {
   position: fixed;
-  bottom: 24px;
+  top: 362px;
   left: 12px;
+  width: 180px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: rgba(20, 20, 40, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-  padding: 8px 14px;
+  padding: 10px 14px;
   z-index: 10;
-  color: #e0e0e0;
-  font-size: 12px;
+  color: #d0d0d0;
+  font-size: 13px;
   font-weight: 500;
 }
 
 .entrance-legend-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
+}
+
+@media (max-width: 768px) {
+  .entrance-legend {
+    width: 150px;
+    top: 330px;
+    padding: 8px 12px;
+  }
 }
 
 /* ===== Mapbox overrides ===== */
