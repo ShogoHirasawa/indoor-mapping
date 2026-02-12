@@ -1,0 +1,10 @@
+# Environment variables (contains secrets)
+js/env.js
+.env
+.env.local
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
