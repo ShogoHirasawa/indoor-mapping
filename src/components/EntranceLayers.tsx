@@ -83,7 +83,7 @@ export default function EntranceLayers() {
         type="symbol"
         layout={{
           'icon-image': ICON_ID,
-          'icon-size': 0.45,
+          'icon-size': 0.15,
           'icon-allow-overlap': true,
           'icon-anchor': 'bottom',
         }}
