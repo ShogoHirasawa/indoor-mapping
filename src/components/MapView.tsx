@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react';
 import Map, {
   NavigationControl,
+  GeolocateControl,
   Layer,
   Source,
   type MapRef,
@@ -116,6 +117,12 @@ export default function MapView() {
       style={{ width: '100%', height: '100%' }}
     >
       <NavigationControl position="top-left" />
+      <GeolocateControl
+        position="top-left"
+        positionOptions={{ enableHighAccuracy: true }}
+        trackUserLocation
+        showUserHeading
+      />
 
       {/* 3D Building extrusion layer */}
       <Source id="composite" type="vector" url="mapbox://mapbox.mapbox-streets-v8">
