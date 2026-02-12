@@ -16,6 +16,7 @@ export default function Palette() {
   const setTool = useMapStore((s) => s.setTool);
   const snapEnabled = useMapStore((s) => s.snapEnabled);
   const setSnapEnabled = useMapStore((s) => s.setSnapEnabled);
+  const currentFloorIdx = useMapStore((s) => s.currentFloorIdx);
 
   const handleToolClick = useCallback(
     (type: ObjectType) => {
@@ -51,6 +52,21 @@ export default function Palette() {
           Grid Snap
         </label>
       </div>
+
+      {/* Entrance legend — only on 1F */}
+      {currentFloorIdx === 2 && (
+        <div className="entrance-legend-inline">
+          <div className="panel-title">Legend</div>
+          <div className="entrance-legend-row">
+            <img
+              src={`${import.meta.env.BASE_URL}entrance-icon.png`}
+              alt="Entrance"
+              className="entrance-legend-icon"
+            />
+            <span>Entrance</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

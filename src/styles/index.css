@@ -324,40 +324,26 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 
-/* ===== Entrance Legend (below left panel) ===== */
-.entrance-legend {
-  position: fixed;
-  top: 362px;
-  left: 12px;
-  width: 180px;
+/* ===== Entrance Legend (inside left panel) ===== */
+.entrance-legend-inline {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.entrance-legend-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(20, 20, 40, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-  padding: 10px 14px;
-  z-index: 10;
+  padding: 6px 0;
   color: #d0d0d0;
   font-size: 13px;
-  font-weight: 500;
 }
 
 .entrance-legend-icon {
   width: 18px;
   height: 18px;
   object-fit: contain;
-}
-
-@media (max-width: 768px) {
-  .entrance-legend {
-    width: 150px;
-    top: 330px;
-    padding: 8px 12px;
-  }
 }
 
 /* ===== Mapbox overrides ===== */

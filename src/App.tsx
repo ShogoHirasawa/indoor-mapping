@@ -1,7 +1,6 @@
 import MapView from './components/MapView';
 import Toolbar from './components/Toolbar';
 import Palette from './components/Palette';
-import EntranceLegend from './components/EntranceLegend';
 import PropertiesPanel from './components/PropertiesPanel';
 import FloorSlider from './components/FloorSlider';
 import Toast from './components/Toast';
@@ -17,7 +16,6 @@ export default function App() {
       </div>
       <Toolbar />
       <Palette />
-      <EntranceLegend />
       <PropertiesPanel />
       <FloorSlider />
       <Toast />
