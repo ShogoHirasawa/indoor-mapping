@@ -32,15 +32,35 @@ export function useEntrance() {
 
     try {
       const resp = await fetch(url);
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        console.warn('[Entrance] Geocoding API returned', resp.status);
+        return;
+      }
       const data = await resp.json();
+      console.log('[Entrance] Geocoding response:', JSON.stringify(data, null, 2));
 
       const points: EntrancePoint[] = [];
 
+      // Extract the routable_points array from a feature.
+      // The API may return it in different locations depending on version:
+      //   - feature.properties.routable_points.points  (array)
+      //   - feature.properties.routable_points          (array directly)
+      //   - feature.routable_points                     (array directly)
+      const extractRoutablePoints = (feature: any): any[] => {
+        const candidates = [
+          feature.properties?.routable_points?.points,
+          feature.properties?.routable_points,
+          feature.routable_points,
+        ];
+        for (const c of candidates) {
+          if (Array.isArray(c)) return c;
+        }
+        return [];
+      };
+
       if (data.features?.length) {
         for (const feature of data.features) {
-          const routablePoints: any[] =
-            feature.properties?.routable_points?.points ?? feature.routable_points ?? [];
+          const routablePoints = extractRoutablePoints(feature);
 
           for (const rp of routablePoints) {
             if (rp.name === 'entrance') {
@@ -51,10 +71,8 @@ export function useEntrance() {
 
         // Fallback to "default" routable point if no entrances found
         if (points.length === 0) {
-          const feature = data.features[0];
-          const rps: any[] =
-            feature.properties?.routable_points?.points ?? feature.routable_points ?? [];
-          for (const rp of rps) {
+          const routablePoints = extractRoutablePoints(data.features[0]);
+          for (const rp of routablePoints) {
             if (rp.name === 'default') {
               points.push({ lng: rp.longitude, lat: rp.latitude, accuracy: 'default' });
             }
