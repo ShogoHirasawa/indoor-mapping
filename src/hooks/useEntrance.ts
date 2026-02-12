@@ -42,15 +42,17 @@ export function useEntrance() {
       const points: EntrancePoint[] = [];
 
       // Extract the routable_points array from a feature.
-      // The API may return it in different locations depending on version:
-      //   - feature.properties.routable_points.points  (array)
-      //   - feature.properties.routable_points          (array directly)
-      //   - feature.routable_points                     (array directly)
+      // The API returns varying structures:
+      //   - feature.routable_points.points    (object with .points array)
+      //   - feature.routable_points           (direct array — blog example)
+      //   - feature.properties.routable_points.points
+      //   - feature.properties.routable_points (direct array)
       const extractRoutablePoints = (feature: any): any[] => {
         const candidates = [
+          feature.routable_points?.points,
+          feature.routable_points,
           feature.properties?.routable_points?.points,
           feature.properties?.routable_points,
-          feature.routable_points,
         ];
         for (const c of candidates) {
           if (Array.isArray(c)) return c;
@@ -58,27 +60,49 @@ export function useEntrance() {
         return [];
       };
 
+      // Extract lng/lat from a routable point.
+      // API v5 uses coordinates:[lng,lat], blog example uses longitude/latitude.
+      const getLngLat = (rp: any): { lng: number; lat: number } | null => {
+        if (Array.isArray(rp.coordinates) && rp.coordinates.length >= 2) {
+          return { lng: rp.coordinates[0], lat: rp.coordinates[1] };
+        }
+        if (typeof rp.longitude === 'number' && typeof rp.latitude === 'number') {
+          return { lng: rp.longitude, lat: rp.latitude };
+        }
+        return null;
+      };
+
       if (data.features?.length) {
         for (const feature of data.features) {
           const routablePoints = extractRoutablePoints(feature);
+          console.log('[Entrance] Routable points:', routablePoints);
 
           for (const rp of routablePoints) {
-            if (rp.name === 'entrance') {
-              points.push({ lng: rp.longitude, lat: rp.latitude, accuracy: rp.accuracy ?? 'unknown' });
+            // Match "entrance" or names containing "entrance"
+            if (typeof rp.name === 'string' && rp.name.toLowerCase().includes('entrance')) {
+              const pos = getLngLat(rp);
+              if (pos) {
+                points.push({ lng: pos.lng, lat: pos.lat, accuracy: rp.accuracy ?? 'unknown' });
+              }
             }
           }
         }
 
-        // Fallback to "default" routable point if no entrances found
+        // Fallback: use "default" / "default_routable_point" if no entrances
         if (points.length === 0) {
           const routablePoints = extractRoutablePoints(data.features[0]);
           for (const rp of routablePoints) {
-            if (rp.name === 'default') {
-              points.push({ lng: rp.longitude, lat: rp.latitude, accuracy: 'default' });
+            if (typeof rp.name === 'string' && rp.name.toLowerCase().includes('default')) {
+              const pos = getLngLat(rp);
+              if (pos) {
+                points.push({ lng: pos.lng, lat: pos.lat, accuracy: 'default' });
+              }
             }
           }
         }
       }
+
+      console.log('[Entrance] Parsed entrance points:', points);
 
       setEntranceData(points);
     } catch (err) {
