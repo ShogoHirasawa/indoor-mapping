@@ -35,9 +35,11 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
         Mode: {mode === 'edit' ? 'Edit' : 'Browse'}
       </button>
 
-      <button className="toolbar-btn lb-btn" onClick={onOpenLeaderboard}>
-        Leaderboard
-      </button>
+      {!insideBuilding && (
+        <button className="toolbar-btn lb-btn" onClick={onOpenLeaderboard}>
+          Leaderboard
+        </button>
+      )}
 
       <div className="toolbar-divider" />
 
