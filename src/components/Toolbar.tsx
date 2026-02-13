@@ -2,7 +2,11 @@ import { useCallback } from 'react';
 import { useMapStore } from '../store/useMapStore';
 import { buildExportPayload, downloadJson } from '../utils/exportJson';
 
-export default function Toolbar() {
+interface ToolbarProps {
+  onOpenLeaderboard: () => void;
+}
+
+export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
   const insideBuilding = useMapStore((s) => s.insideBuilding);
   const mode = useMapStore((s) => s.mode);
   const setMode = useMapStore((s) => s.setMode);
@@ -29,6 +33,10 @@ export default function Toolbar() {
         onClick={toggleMode}
       >
         Mode: {mode === 'edit' ? 'Edit' : 'Browse'}
+      </button>
+
+      <button className="toolbar-btn lb-btn" onClick={onOpenLeaderboard}>
+        Leaderboard
       </button>
 
       <div className="toolbar-divider" />
