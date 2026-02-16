@@ -15,6 +15,7 @@ import { useBuilding, BUILDING_LAYER, BUILDING_HIGHLIGHT_LAYER } from '../hooks/
 import { useEditor } from '../hooks/useEditor';
 import IndoorLayers from './IndoorLayers';
 import EntranceLayers from './EntranceLayers';
+import DemoOverlay from './DemoOverlay';
 
 const INITIAL_VIEW = {
   longitude: -122.4194,
@@ -159,6 +160,9 @@ export default function MapView() {
 
       {/* Entrance markers */}
       {insideBuilding && <EntranceLayers />}
+
+      {/* Demo overlay: route line + indoor POIs for video capture */}
+      <DemoOverlay />
     </Map>
   );
 }
