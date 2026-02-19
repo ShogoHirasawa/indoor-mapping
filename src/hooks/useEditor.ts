@@ -77,9 +77,11 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         if (!map) return;
         const hitLayers = [
           LAYER_IDS.wallsHit,
-          LAYER_IDS.doors,
-          LAYER_IDS.stairs,
-          LAYER_IDS.elevators,
+          LAYER_IDS.doorsHit,
+          LAYER_IDS.stairsHit,
+          LAYER_IDS.elevatorsHit,
+          LAYER_IDS.restroomsHit,
+          LAYER_IDS.infosHit,
         ].filter((l) => map.getLayer(l));
         const features = map.queryRenderedFeatures(e.point, { layers: hitLayers });
         if (features.length > 0) {
@@ -98,10 +100,10 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           handleDoorClick(coord);
           break;
         case 'Stair':
-          addObject('Stair', createRectPolygon(coord[0], coord[1], STAIR_WIDTH, STAIR_LENGTH));
-          break;
         case 'Elevator':
-          addObject('Elevator', { type: 'Point', coordinates: coord });
+        case 'Restroom':
+        case 'Info':
+          addObject(activeTool, { type: 'Point', coordinates: coord });
           break;
       }
     },
@@ -206,9 +208,11 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
 
       const hitLayers = [
         LAYER_IDS.wallsHit,
-        LAYER_IDS.doors,
-        LAYER_IDS.stairs,
-        LAYER_IDS.elevators,
+        LAYER_IDS.doorsHit,
+        LAYER_IDS.stairsHit,
+        LAYER_IDS.elevatorsHit,
+        LAYER_IDS.restroomsHit,
+        LAYER_IDS.infosHit,
       ].filter((l) => map.getLayer(l));
       const features = map.queryRenderedFeatures(e.point, { layers: hitLayers });
       const hit = features.find((f: mapboxgl.GeoJSONFeature) => f.properties?.id === selected.id);
@@ -267,7 +271,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           props: { rotation: targetAngle },
         });
       } else {
-        // Point-based (Door / Elevator): just update rotation prop
+        // Point-based (Door / Elevator / Restroom / Info): just update rotation prop
         updateObject(obj.id, { props: { rotation: targetAngle } });
       }
     },

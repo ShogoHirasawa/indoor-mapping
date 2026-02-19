@@ -2,11 +2,15 @@ import { useCallback } from 'react';
 import type { ObjectType } from '../types';
 import { useMapStore } from '../store/useMapStore';
 
-const TOOLS: { type: ObjectType; icon: string }[] = [
+const base = import.meta.env.BASE_URL;
+
+const TOOLS: { type: ObjectType; icon?: string; img?: string }[] = [
   { type: 'Wall', icon: '|' },
-  { type: 'Door', icon: '\u25AF' },
-  { type: 'Stair', icon: '\u2261' },
-  { type: 'Elevator', icon: '\u25B2' },
+  { type: 'Door', img: `${base}door.png` },
+  { type: 'Stair', img: `${base}stairs.png` },
+  { type: 'Elevator', img: `${base}elevator.png` },
+  { type: 'Restroom', img: `${base}toilet.png` },
+  { type: 'Info', img: `${base}information.png` },
 ];
 
 export default function Palette() {
@@ -37,7 +41,11 @@ export default function Palette() {
           className={`tool-btn${activeTool === t.type ? ' active' : ''}`}
           onClick={() => handleToolClick(t.type)}
         >
-          <span className="tool-icon">{t.icon}</span>
+          {t.img ? (
+            <img src={t.img} alt={t.type} className="tool-icon-img" />
+          ) : (
+            <span className="tool-icon">{t.icon}</span>
+          )}
           <span>{t.type}</span>
         </button>
       ))}
