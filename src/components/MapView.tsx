@@ -13,6 +13,7 @@ import { MAPBOX_TOKEN } from '../env';
 import { useMapStore } from '../store/useMapStore';
 import { useBuilding, BUILDING_LAYER, BUILDING_HIGHLIGHT_LAYER } from '../hooks/useBuilding';
 import { useEditor } from '../hooks/useEditor';
+import { POI_ICON_MAP } from '../config';
 import IndoorLayers from './IndoorLayers';
 import EntranceLayers from './EntranceLayers';
 
@@ -42,17 +43,35 @@ export default function MapView() {
     const map = mapRef.current?.getMap();
     if (!map) return;
 
-    // Hide default Mapbox building layers to avoid conflicts
-    const layers = map.getStyle().layers ?? [];
-    for (const layer of layers) {
-      if (
-        (layer as { 'source-layer'?: string })['source-layer'] === 'building' &&
-        layer.id !== BUILDING_LAYER &&
-        layer.id !== BUILDING_HIGHLIGHT_LAYER
-      ) {
-        map.setLayoutProperty(layer.id, 'visibility', 'none');
+    // Standard style: disable built-in 3D objects so our custom building layers control rendering
+    try {
+      (map as any).setConfigProperty('basemap', 'show3dObjects', false);
+    } catch {
+      // Fallback for non-Standard styles
+      const layers = map.getStyle().layers ?? [];
+      for (const layer of layers) {
+        if (
+          (layer as { 'source-layer'?: string })['source-layer'] === 'building' &&
+          layer.id !== BUILDING_LAYER &&
+          layer.id !== BUILDING_HIGHLIGHT_LAYER
+        ) {
+          map.setLayoutProperty(layer.id, 'visibility', 'none');
+        }
       }
     }
+
+    // Load POI icon images into the map
+    const base = import.meta.env.BASE_URL;
+    for (const [iconId, filename] of Object.entries(POI_ICON_MAP)) {
+      if (map.hasImage(iconId)) continue;
+      map.loadImage(`${base}${filename}`, (err: unknown, image: any) => {
+        if (err || !image) return;
+        if (!map.hasImage(iconId)) {
+          map.addImage(iconId, image);
+        }
+      });
+    }
+
     setMapLoaded(true);
   }, []);
 
@@ -105,7 +124,7 @@ export default function MapView() {
       ref={mapRef}
       initialViewState={INITIAL_VIEW}
       mapboxAccessToken={MAPBOX_TOKEN}
-      mapStyle="mapbox://styles/mapbox/streets-v12"
+      mapStyle="mapbox://styles/mapbox/standard"
       antialias
       interactiveLayerIds={mapLoaded ? [BUILDING_LAYER] : []}
       onClick={onClick}

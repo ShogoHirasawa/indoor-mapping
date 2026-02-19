@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/mapbox';
 import type { FeatureCollection, Feature } from 'geojson';
 import { useMapStore } from '../store/useMapStore';
-import { COLORS } from '../config';
+import { COLORS, OBJECT_TYPE_ICON } from '../config';
 
 /** Source / layer IDs (exported so the editor can query them) */
 export const LAYER_IDS = {
@@ -12,9 +12,17 @@ export const LAYER_IDS = {
   wallsHit: 'indoor-walls-hit',
   wallPreview: 'indoor-wall-preview',
   doors: 'indoor-doors',
+  doorsHit: 'indoor-doors-hit',
   stairs: 'indoor-stairs',
   stairsOutline: 'indoor-stairs-outline',
   elevators: 'indoor-elevators',
+  elevatorsHit: 'indoor-elevators-hit',
+  exits: 'indoor-exits',
+  exitsHit: 'indoor-exits-hit',
+  restrooms: 'indoor-restrooms',
+  restroomsHit: 'indoor-restrooms-hit',
+  infos: 'indoor-infos',
+  infosHit: 'indoor-infos-hit',
 } as const;
 
 function emptyFC(): FeatureCollection {
@@ -44,7 +52,7 @@ export default function IndoorLayers() {
   }, [floor?.floorPolygon, floor?.elevation]);
 
   // ── Objects split by type ──
-  const { wallsFC, doorsFC, stairsFC, elevatorsFC } = useMemo(() => {
+  const { wallsFC, doorsFC, stairsFC, elevatorsFC, exitsFC, restroomsFC, infosFC } = useMemo(() => {
     const objects = floor?.objects ?? [];
 
     const toFeature = (o: (typeof objects)[number]): Feature => ({
@@ -54,6 +62,8 @@ export default function IndoorLayers() {
         id: o.id,
         selected: o.id === selectedObjectId,
         rotation: o.props.rotation ?? 0,
+        objectType: o.type,
+        iconId: OBJECT_TYPE_ICON[o.type] ?? '',
       },
     });
 
@@ -73,6 +83,18 @@ export default function IndoorLayers() {
       elevatorsFC: {
         type: 'FeatureCollection' as const,
         features: objects.filter((o) => o.type === 'Elevator').map(toFeature),
+      },
+      exitsFC: {
+        type: 'FeatureCollection' as const,
+        features: objects.filter((o) => o.type === 'Exit').map(toFeature),
+      },
+      restroomsFC: {
+        type: 'FeatureCollection' as const,
+        features: objects.filter((o) => o.type === 'Restroom').map(toFeature),
+      },
+      infosFC: {
+        type: 'FeatureCollection' as const,
+        features: objects.filter((o) => o.type === 'Info').map(toFeature),
       },
     };
   }, [floor?.objects, selectedObjectId]);
@@ -133,22 +155,22 @@ export default function IndoorLayers() {
         />
       </Source>
 
-      {/* ── Doors ── */}
+      {/* ── Doors (icon) ── */}
       <Source id={LAYER_IDS.doors} type="geojson" data={doorsFC}>
         <Layer
           id={LAYER_IDS.doors}
-          type="circle"
-          paint={{
-            'circle-radius': 7,
-            'circle-color': [
-              'case',
-              ['==', ['get', 'selected'], true],
-              COLORS.doorSelected,
-              COLORS.door,
-            ],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
+          type="symbol"
+          layout={{
+            'icon-image': 'icon-door',
+            'icon-size': 0.12,
+            'icon-allow-overlap': true,
+            'icon-anchor': 'center',
           }}
+        />
+        <Layer
+          id={LAYER_IDS.doorsHit}
+          type="circle"
+          paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
         />
       </Source>
 
@@ -174,22 +196,79 @@ export default function IndoorLayers() {
         />
       </Source>
 
-      {/* ── Elevators ── */}
+      {/* ── Elevators (icon) ── */}
       <Source id={LAYER_IDS.elevators} type="geojson" data={elevatorsFC}>
         <Layer
           id={LAYER_IDS.elevators}
-          type="circle"
-          paint={{
-            'circle-radius': 9,
-            'circle-color': [
-              'case',
-              ['==', ['get', 'selected'], true],
-              COLORS.elevatorSelected,
-              COLORS.elevator,
-            ],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
+          type="symbol"
+          layout={{
+            'icon-image': 'icon-elevator',
+            'icon-size': 0.12,
+            'icon-allow-overlap': true,
+            'icon-anchor': 'center',
           }}
+        />
+        <Layer
+          id={LAYER_IDS.elevatorsHit}
+          type="circle"
+          paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
+        />
+      </Source>
+
+      {/* ── Exits (icon) ── */}
+      <Source id={LAYER_IDS.exits} type="geojson" data={exitsFC}>
+        <Layer
+          id={LAYER_IDS.exits}
+          type="symbol"
+          layout={{
+            'icon-image': 'icon-exit',
+            'icon-size': 0.12,
+            'icon-allow-overlap': true,
+            'icon-anchor': 'center',
+          }}
+        />
+        <Layer
+          id={LAYER_IDS.exitsHit}
+          type="circle"
+          paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
+        />
+      </Source>
+
+      {/* ── Restrooms (icon) ── */}
+      <Source id={LAYER_IDS.restrooms} type="geojson" data={restroomsFC}>
+        <Layer
+          id={LAYER_IDS.restrooms}
+          type="symbol"
+          layout={{
+            'icon-image': 'icon-restroom',
+            'icon-size': 0.12,
+            'icon-allow-overlap': true,
+            'icon-anchor': 'center',
+          }}
+        />
+        <Layer
+          id={LAYER_IDS.restroomsHit}
+          type="circle"
+          paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
+        />
+      </Source>
+
+      {/* ── Info (icon) ── */}
+      <Source id={LAYER_IDS.infos} type="geojson" data={infosFC}>
+        <Layer
+          id={LAYER_IDS.infos}
+          type="symbol"
+          layout={{
+            'icon-image': 'icon-info',
+            'icon-size': 0.12,
+            'icon-allow-overlap': true,
+            'icon-anchor': 'center',
+          }}
+        />
+        <Layer
+          id={LAYER_IDS.infosHit}
+          type="circle"
+          paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
         />
       </Source>
     </>

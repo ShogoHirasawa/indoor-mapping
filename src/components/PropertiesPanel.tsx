@@ -75,6 +75,9 @@ export default function PropertiesPanel() {
   else if (activeTool === 'Door') helpText = 'Click on an existing wall to place a door.';
   else if (activeTool === 'Stair') helpText = 'Click on the floor to place a stair.';
   else if (activeTool === 'Elevator') helpText = 'Click on the floor to place an elevator.';
+  else if (activeTool === 'Exit') helpText = 'Click on the floor to place an emergency exit.';
+  else if (activeTool === 'Restroom') helpText = 'Click on the floor to place a restroom.';
+  else if (activeTool === 'Info') helpText = 'Click on the floor to place an info point.';
 
   const rotation = obj?.props.rotation ?? 0;
 

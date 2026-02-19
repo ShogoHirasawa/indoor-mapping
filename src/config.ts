@@ -33,6 +33,12 @@ export const COLORS = {
   stairSelected: '#4caf50',
   elevator: '#2196f3',
   elevatorSelected: '#0d47a1',
+  exit: '#4caf50',
+  exitSelected: '#2e7d32',
+  restroom: '#607d8b',
+  restroomSelected: '#37474f',
+  info: '#ff9800',
+  infoSelected: '#e65100',
   buildingHighlight: '#ff5722',
   selectedOutline: '#1a73e8',
 } as const;
@@ -42,4 +48,25 @@ export const OBJECT_TYPES: Record<string, ObjectType> = {
   DOOR: 'Door',
   STAIR: 'Stair',
   ELEVATOR: 'Elevator',
+  EXIT: 'Exit',
+  RESTROOM: 'Restroom',
+  INFO: 'Info',
+};
+
+/** Map icon IDs to image filenames in public/ */
+export const POI_ICON_MAP: Record<string, string> = {
+  'icon-door': 'door.png',
+  'icon-elevator': 'elevator.png',
+  'icon-exit': 'emergency-door.png',
+  'icon-restroom': 'toilet.png',
+  'icon-info': 'information.png',
+};
+
+/** ObjectType → Mapbox icon image ID */
+export const OBJECT_TYPE_ICON: Record<string, string> = {
+  Door: 'icon-door',
+  Elevator: 'icon-elevator',
+  Exit: 'icon-exit',
+  Restroom: 'icon-restroom',
+  Info: 'icon-info',
 };
