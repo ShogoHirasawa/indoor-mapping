@@ -7,9 +7,8 @@ const base = import.meta.env.BASE_URL;
 const TOOLS: { type: ObjectType; icon?: string; img?: string }[] = [
   { type: 'Wall', icon: '|' },
   { type: 'Door', img: `${base}door.png` },
-  { type: 'Stair', icon: '\u2261' },
+  { type: 'Stair', img: `${base}stairs.png` },
   { type: 'Elevator', img: `${base}elevator.png` },
-  { type: 'Exit', img: `${base}emergency-door.png` },
   { type: 'Restroom', img: `${base}toilet.png` },
   { type: 'Info', img: `${base}information.png` },
 ];

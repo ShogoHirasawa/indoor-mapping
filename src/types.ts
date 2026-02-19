@@ -1,7 +1,7 @@
 import type { Geometry, Position, Polygon, LineString, Point } from 'geojson';
 
 // ---------- Object Types ----------
-export type ObjectType = 'Wall' | 'Door' | 'Stair' | 'Elevator' | 'Exit' | 'Restroom' | 'Info';
+export type ObjectType = 'Wall' | 'Door' | 'Stair' | 'Elevator' | 'Restroom' | 'Info';
 
 // ---------- Indoor Object ----------
 export interface IndoorObjectProps {

@@ -14,11 +14,9 @@ export const LAYER_IDS = {
   doors: 'indoor-doors',
   doorsHit: 'indoor-doors-hit',
   stairs: 'indoor-stairs',
-  stairsOutline: 'indoor-stairs-outline',
+  stairsHit: 'indoor-stairs-hit',
   elevators: 'indoor-elevators',
   elevatorsHit: 'indoor-elevators-hit',
-  exits: 'indoor-exits',
-  exitsHit: 'indoor-exits-hit',
   restrooms: 'indoor-restrooms',
   restroomsHit: 'indoor-restrooms-hit',
   infos: 'indoor-infos',
@@ -52,7 +50,7 @@ export default function IndoorLayers() {
   }, [floor?.floorPolygon, floor?.elevation]);
 
   // ── Objects split by type ──
-  const { wallsFC, doorsFC, stairsFC, elevatorsFC, exitsFC, restroomsFC, infosFC } = useMemo(() => {
+  const { wallsFC, doorsFC, stairsFC, elevatorsFC, restroomsFC, infosFC } = useMemo(() => {
     const objects = floor?.objects ?? [];
 
     const toFeature = (o: (typeof objects)[number]): Feature => ({
@@ -83,10 +81,6 @@ export default function IndoorLayers() {
       elevatorsFC: {
         type: 'FeatureCollection' as const,
         features: objects.filter((o) => o.type === 'Elevator').map(toFeature),
-      },
-      exitsFC: {
-        type: 'FeatureCollection' as const,
-        features: objects.filter((o) => o.type === 'Exit').map(toFeature),
       },
       restroomsFC: {
         type: 'FeatureCollection' as const,
@@ -158,6 +152,19 @@ export default function IndoorLayers() {
       {/* ── Doors (icon) ── */}
       <Source id={LAYER_IDS.doors} type="geojson" data={doorsFC}>
         <Layer
+          id={`${LAYER_IDS.doors}-bg`}
+          type="circle"
+          paint={{
+            'circle-radius': 10,
+            'circle-color': [
+              'case', ['==', ['get', 'selected'], true],
+              COLORS.doorSelected, COLORS.door,
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          }}
+        />
+        <Layer
           id={LAYER_IDS.doors}
           type="symbol"
           layout={{
@@ -174,30 +181,53 @@ export default function IndoorLayers() {
         />
       </Source>
 
-      {/* ── Stairs ── */}
+      {/* ── Stairs (icon) ── */}
       <Source id={LAYER_IDS.stairs} type="geojson" data={stairsFC}>
         <Layer
-          id={LAYER_IDS.stairs}
-          type="fill"
+          id={`${LAYER_IDS.stairs}-bg`}
+          type="circle"
           paint={{
-            'fill-color': [
-              'case',
-              ['==', ['get', 'selected'], true],
-              COLORS.stairSelected,
-              COLORS.stair,
+            'circle-radius': 10,
+            'circle-color': [
+              'case', ['==', ['get', 'selected'], true],
+              COLORS.stairSelected, COLORS.stair,
             ],
-            'fill-opacity': 0.7,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
           }}
         />
         <Layer
-          id={LAYER_IDS.stairsOutline}
-          type="line"
-          paint={{ 'line-color': '#555', 'line-width': 1.5 }}
+          id={LAYER_IDS.stairs}
+          type="symbol"
+          layout={{
+            'icon-image': 'icon-stair',
+            'icon-size': 0.03,
+            'icon-allow-overlap': true,
+            'icon-anchor': 'center',
+          }}
+        />
+        <Layer
+          id={LAYER_IDS.stairsHit}
+          type="circle"
+          paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
         />
       </Source>
 
       {/* ── Elevators (icon) ── */}
       <Source id={LAYER_IDS.elevators} type="geojson" data={elevatorsFC}>
+        <Layer
+          id={`${LAYER_IDS.elevators}-bg`}
+          type="circle"
+          paint={{
+            'circle-radius': 10,
+            'circle-color': [
+              'case', ['==', ['get', 'selected'], true],
+              COLORS.elevatorSelected, COLORS.elevator,
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          }}
+        />
         <Layer
           id={LAYER_IDS.elevators}
           type="symbol"
@@ -215,27 +245,21 @@ export default function IndoorLayers() {
         />
       </Source>
 
-      {/* ── Exits (icon) ── */}
-      <Source id={LAYER_IDS.exits} type="geojson" data={exitsFC}>
-        <Layer
-          id={LAYER_IDS.exits}
-          type="symbol"
-          layout={{
-            'icon-image': 'icon-exit',
-            'icon-size': 0.12,
-            'icon-allow-overlap': true,
-            'icon-anchor': 'center',
-          }}
-        />
-        <Layer
-          id={LAYER_IDS.exitsHit}
-          type="circle"
-          paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
-        />
-      </Source>
-
       {/* ── Restrooms (icon) ── */}
       <Source id={LAYER_IDS.restrooms} type="geojson" data={restroomsFC}>
+        <Layer
+          id={`${LAYER_IDS.restrooms}-bg`}
+          type="circle"
+          paint={{
+            'circle-radius': 10,
+            'circle-color': [
+              'case', ['==', ['get', 'selected'], true],
+              COLORS.restroomSelected, COLORS.restroom,
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          }}
+        />
         <Layer
           id={LAYER_IDS.restrooms}
           type="symbol"
@@ -255,6 +279,19 @@ export default function IndoorLayers() {
 
       {/* ── Info (icon) ── */}
       <Source id={LAYER_IDS.infos} type="geojson" data={infosFC}>
+        <Layer
+          id={`${LAYER_IDS.infos}-bg`}
+          type="circle"
+          paint={{
+            'circle-radius': 10,
+            'circle-color': [
+              'case', ['==', ['get', 'selected'], true],
+              COLORS.infoSelected, COLORS.info,
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          }}
+        />
         <Layer
           id={LAYER_IDS.infos}
           type="symbol"

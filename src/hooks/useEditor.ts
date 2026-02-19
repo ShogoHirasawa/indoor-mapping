@@ -78,9 +78,8 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         const hitLayers = [
           LAYER_IDS.wallsHit,
           LAYER_IDS.doorsHit,
-          LAYER_IDS.stairs,
+          LAYER_IDS.stairsHit,
           LAYER_IDS.elevatorsHit,
-          LAYER_IDS.exitsHit,
           LAYER_IDS.restroomsHit,
           LAYER_IDS.infosHit,
         ].filter((l) => map.getLayer(l));
@@ -101,10 +100,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           handleDoorClick(coord);
           break;
         case 'Stair':
-          addObject('Stair', createRectPolygon(coord[0], coord[1], STAIR_WIDTH, STAIR_LENGTH));
-          break;
         case 'Elevator':
-        case 'Exit':
         case 'Restroom':
         case 'Info':
           addObject(activeTool, { type: 'Point', coordinates: coord });
@@ -213,9 +209,8 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       const hitLayers = [
         LAYER_IDS.wallsHit,
         LAYER_IDS.doorsHit,
-        LAYER_IDS.stairs,
+        LAYER_IDS.stairsHit,
         LAYER_IDS.elevatorsHit,
-        LAYER_IDS.exitsHit,
         LAYER_IDS.restroomsHit,
         LAYER_IDS.infosHit,
       ].filter((l) => map.getLayer(l));
@@ -276,7 +271,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           props: { rotation: targetAngle },
         });
       } else {
-        // Point-based (Door / Elevator / Exit / Restroom / Info): just update rotation prop
+        // Point-based (Door / Elevator / Restroom / Info): just update rotation prop
         updateObject(obj.id, { props: { rotation: targetAngle } });
       }
     },
