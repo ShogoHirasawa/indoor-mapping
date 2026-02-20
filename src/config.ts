@@ -52,11 +52,11 @@ export const OBJECT_TYPES: Record<string, ObjectType> = {
 
 /** Map icon IDs to image filenames in public/ */
 export const POI_ICON_MAP: Record<string, string> = {
-  'icon-door': 'door.png',
-  'icon-stair': 'stairs.png',
-  'icon-elevator': 'elevator.png',
-  'icon-restroom': 'toilet.png',
-  'icon-info': 'information.png',
+  'icon-door': 'icons/door.png',
+  'icon-stair': 'icons/stairs.png',
+  'icon-elevator': 'icons/elevator.png',
+  'icon-restroom': 'icons/toilet.png',
+  'icon-info': 'icons/information.png',
 };
 
 /** ObjectType → Mapbox icon image ID */

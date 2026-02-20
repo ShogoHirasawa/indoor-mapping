@@ -6,11 +6,11 @@ const base = import.meta.env.BASE_URL;
 
 const TOOLS: { type: ObjectType; icon?: string; img?: string }[] = [
   { type: 'Wall', icon: '|' },
-  { type: 'Door', img: `${base}door.png` },
-  { type: 'Stair', img: `${base}stairs.png` },
-  { type: 'Elevator', img: `${base}elevator.png` },
-  { type: 'Restroom', img: `${base}toilet.png` },
-  { type: 'Info', img: `${base}information.png` },
+  { type: 'Door', img: `${base}icons/door.png` },
+  { type: 'Stair', img: `${base}icons/stairs.png` },
+  { type: 'Elevator', img: `${base}icons/elevator.png` },
+  { type: 'Restroom', img: `${base}icons/toilet.png` },
+  { type: 'Info', img: `${base}icons/information.png` },
 ];
 
 export default function Palette() {
