@@ -34,7 +34,7 @@ export function buildExportPayload(
   };
 }
 
-/** Export building data as JSON: log to console and trigger download */
+/** Export building data as JSON and trigger download */
 export function downloadJson(payload: ExportPayload): void {
   const json = JSON.stringify(payload, null, 2);
 

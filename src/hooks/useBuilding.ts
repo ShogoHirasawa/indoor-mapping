@@ -91,7 +91,7 @@ export function useBuilding() {
       const renderHeight = rawHeight > 0 ? rawHeight : FLOOR_HEIGHT;
       const levels = Math.max(1, Math.round(renderHeight / FLOOR_HEIGHT));
 
-      enterBuilding(buildingId, footprint, levels, renderHeight);
+      enterBuilding(buildingId, footprint, levels);
       generateFloorPolygon(footprint);
     },
     [insideBuilding, enterBuilding, generateFloorPolygon],

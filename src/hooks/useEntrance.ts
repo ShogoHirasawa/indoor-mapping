@@ -5,7 +5,7 @@ import { centroid } from '../utils/geometry';
 
 /**
  * Fetch and manage building entrance data from Mapbox Geocoding API.
- * Entrances are only shown on 1F (floorIdx === 2).
+ * Entrances are only shown on 1F (floorIdx === 0).
  */
 export function useEntrance() {
   const [entranceData, setEntranceData] = useState<EntrancePoint[]>([]);
@@ -32,10 +32,7 @@ export function useEntrance() {
 
     try {
       const resp = await fetch(url);
-      if (!resp.ok) {
-        console.warn('[Entrance] Geocoding API returned', resp.status);
-        return;
-      }
+      if (!resp.ok) return;
       const data = await resp.json();
 
       const points: EntrancePoint[] = [];
@@ -101,9 +98,7 @@ export function useEntrance() {
       }
 
       setEntranceData(points);
-    } catch (err) {
-      console.error('[Entrance] fetch error:', err);
-    }
+    } catch { /* geocoding request failed */ }
   }, []);
 
   /** Show entrance markers */

@@ -34,7 +34,6 @@ export default function MapView() {
   const mode = useMapStore((s) => s.mode);
   const activeTool = useMapStore((s) => s.activeTool);
   const buildingFootprint = useMapStore((s) => s.buildingFootprint);
-  const buildingRenderHeight = useMapStore((s) => s.buildingRenderHeight);
   const { handleBuildingClick } = useBuilding();
   const { handleClick, handleMouseMove, handleMouseDown, handleMouseUp } = useEditor(mapRef);
 

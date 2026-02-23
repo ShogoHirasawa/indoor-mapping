@@ -3,12 +3,10 @@ import type { MapRef, MapMouseEvent } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import type { Position, Geometry } from '../types';
 import { useMapStore } from '../store/useMapStore';
-import { STAIR_WIDTH, STAIR_LENGTH } from '../config';
 import { LAYER_IDS } from '../components/IndoorLayers';
 import { snapCoord } from '../utils/snap';
 import {
   pointToSegmentDistance,
-  createRectPolygon,
   rotatePoint,
   midpoint,
   centroid,

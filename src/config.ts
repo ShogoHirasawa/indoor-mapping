@@ -1,11 +1,4 @@
-import type { FloorDef, ObjectType } from './types';
-
-export const FLOORS: FloorDef[] = [
-  { index: 'B2', elevation: -8, label: 'B2' },
-  { index: 'B1', elevation: -4, label: 'B1' },
-  { index: '1F', elevation: 0, label: '1F' },
-  { index: '2F', elevation: 4, label: '2F' },
-];
+import type { FloorDef } from './types';
 
 export const DEFAULT_FLOOR_INDEX = 0; // 1F (dynamic floors start at index 0)
 
@@ -24,14 +17,8 @@ export function generateFloors(aboveGroundLevels: number): FloorDef[] {
 
 export const FLOOR_HEIGHT = 4; // metres
 
-export const FLOOR_SLAB_THICKNESS = 0.15; // metres
-
 /** Grid snap interval in degrees (~5 m at mid-latitudes) */
 export const SNAP_GRID_INTERVAL = 0.00005;
-
-/** Stair default size in degrees (~3 m × 5 m) */
-export const STAIR_WIDTH = 0.00003;
-export const STAIR_LENGTH = 0.00005;
 
 /** Colour palette */
 export const COLORS = {
@@ -50,18 +37,8 @@ export const COLORS = {
   restroomSelected: '#37474f',
   info: '#ff9800',
   infoSelected: '#e65100',
-  buildingHighlight: '#ff5722',
   selectedOutline: '#1a73e8',
 } as const;
-
-export const OBJECT_TYPES: Record<string, ObjectType> = {
-  WALL: 'Wall',
-  DOOR: 'Door',
-  STAIR: 'Stair',
-  ELEVATOR: 'Elevator',
-  RESTROOM: 'Restroom',
-  INFO: 'Info',
-};
 
 /** Map icon IDs to image filenames in public/ */
 export const POI_ICON_MAP: Record<string, string> = {
@@ -72,7 +49,7 @@ export const POI_ICON_MAP: Record<string, string> = {
   'icon-info': 'icons/information.png',
 };
 
-/** ObjectType → Mapbox icon image ID */
+/** ObjectType → icon image ID */
 export const OBJECT_TYPE_ICON: Record<string, string> = {
   Door: 'icon-door',
   Stair: 'icon-stair',

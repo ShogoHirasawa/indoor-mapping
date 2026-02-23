@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type { FeatureCollection } from 'geojson';
 import { useMapStore } from '../store/useMapStore';
@@ -32,9 +32,7 @@ export default function EntranceLayers() {
       try {
         const resp = await map.loadImage(`${import.meta.env.BASE_URL}entrance-icon.png`);
         if (!map.hasImage(ICON_ID)) map.addImage(ICON_ID, resp.data);
-      } catch (err) {
-        console.error('[Entrance] Failed to load icon:', err);
-      }
+      } catch { /* failed to load entrance icon */ }
     })();
   }, [mapInstance]);
 
