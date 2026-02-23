@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import Map, {
   NavigationControl,
   GeolocateControl,
@@ -6,11 +6,11 @@ import Map, {
   Source,
   type MapRef,
   type MapMouseEvent,
-} from 'react-map-gl/mapbox';
-import type mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+} from 'react-map-gl/maplibre';
+import type maplibregl from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
-import { MAPBOX_TOKEN } from '../env';
 import { useMapStore } from '../store/useMapStore';
 import { useBuilding, BUILDING_LAYER, BUILDING_HIGHLIGHT_LAYER } from '../hooks/useBuilding';
 import { useEditor } from '../hooks/useEditor';
@@ -33,23 +33,21 @@ export default function MapView() {
   const insideBuilding = useMapStore((s) => s.insideBuilding);
   const mode = useMapStore((s) => s.mode);
   const activeTool = useMapStore((s) => s.activeTool);
-  const selectedBuildingId = useMapStore((s) => s.buildingId);
-
+  const buildingFootprint = useMapStore((s) => s.buildingFootprint);
+  const buildingRenderHeight = useMapStore((s) => s.buildingRenderHeight);
   const { handleBuildingClick } = useBuilding();
   const { handleClick, handleMouseMove, handleMouseDown, handleMouseUp } = useEditor(mapRef);
 
   // ── Callbacks ──
 
-  const loadAllIcons = useCallback((map: mapboxgl.Map) => {
+  const loadAllIcons = useCallback(async (map: maplibregl.Map) => {
     const base = import.meta.env.BASE_URL;
     for (const [iconId, filename] of Object.entries(POI_ICON_MAP)) {
       if (map.hasImage(iconId)) continue;
-      map.loadImage(`${base}${filename}`, (err: unknown, image: any) => {
-        if (err || !image) return;
-        if (!map.hasImage(iconId)) {
-          map.addImage(iconId, image);
-        }
-      });
+      try {
+        const resp = await map.loadImage(`${base}${filename}`);
+        if (!map.hasImage(iconId)) map.addImage(iconId, resp.data);
+      } catch { /* ignore */ }
     }
   }, []);
 
@@ -62,15 +60,13 @@ export default function MapView() {
 
     // Load POI icon images & re-load on style changes or missing images
     loadAllIcons(map);
-    map.on('styleimagemissing', (e: { id: string }) => {
+    map.on('styleimagemissing', async (e: { id: string }) => {
       if (e.id in POI_ICON_MAP) {
-        const base = import.meta.env.BASE_URL;
-        map.loadImage(`${base}${POI_ICON_MAP[e.id]}`, (err: unknown, image: any) => {
-          if (err || !image) return;
-          if (!map.hasImage(e.id)) {
-            map.addImage(e.id, image);
-          }
-        });
+        try {
+          const base = import.meta.env.BASE_URL;
+          const resp = await map.loadImage(`${base}${POI_ICON_MAP[e.id]}`);
+          if (!map.hasImage(e.id)) map.addImage(e.id, resp.data);
+        } catch { /* ignore */ }
       }
     });
     map.on('style.load', () => loadAllIcons(map));
@@ -115,31 +111,33 @@ export default function MapView() {
     [insideBuilding, mode, handleMouseUp],
   );
 
-  // Toggle Standard style's built-in 3D buildings based on indoor state
+  // Hide base style building layers when inside a building
+  const BASE_BUILDING_LAYERS = ['building', 'building-top'];
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map || !mapLoaded) return;
-    try {
-      (map as any).setConfigProperty('basemap', 'show3dObjects', !insideBuilding);
-    } catch {
-      // Non-Standard style fallback: no-op
+    const vis = insideBuilding ? 'none' : 'visible';
+    for (const id of BASE_BUILDING_LAYERS) {
+      try { map.setLayoutProperty(id, 'visibility', vis); } catch { /* ignore */ }
     }
   }, [insideBuilding, mapLoaded]);
 
   const cursor = insideBuilding && mode === 'edit' ? (activeTool ? 'crosshair' : 'default') : '';
 
-  // Build highlight filter
-  const highlightFilter: any = selectedBuildingId
-    ? ['==', ['id'], Number(selectedBuildingId) || 0]
-    : ['==', 'extrude', 'false_placeholder'];
+  // GeoJSON for the selected building highlight (orange 3D frame)
+  const highlightFC: FeatureCollection = useMemo(() => {
+    if (!buildingFootprint) return { type: 'FeatureCollection', features: [] };
+    return {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: buildingFootprint, properties: {} }],
+    };
+  }, [buildingFootprint]);
 
   return (
     <Map
       ref={mapRef}
       initialViewState={INITIAL_VIEW}
-      mapboxAccessToken={MAPBOX_TOKEN}
-      mapStyle="mapbox://styles/mapbox/standard"
-      antialias
+      mapStyle="https://tiles.openfreemap.org/styles/bright"
       interactiveLayerIds={mapLoaded ? [BUILDING_LAYER] : []}
       onClick={onClick}
       onMouseMove={onMouseMove}
@@ -154,38 +152,50 @@ export default function MapView() {
         position="top-left"
         positionOptions={{ enableHighAccuracy: true }}
         trackUserLocation
-        showUserHeading
       />
 
-      {/* 3D Building extrusion layer */}
-      <Source id="building-src" type="vector" url="mapbox://mapbox.mapbox-streets-v8">
+      {/* Building layers (OpenFreeMap / OpenMapTiles schema) */}
+      <Source id="building-src" type="vector" url="https://tiles.openfreemap.org/planet">
+        {/* Invisible 2D fill for click detection */}
         <Layer
           id={BUILDING_LAYER}
-          type="fill-extrusion"
+          type="fill"
           source-layer="building"
-          filter={['==', 'extrude', 'true']}
+          filter={['!', ['has', 'hide_3d']]}
           minzoom={15}
-          paint={{
-            'fill-extrusion-color': '#aaa',
-            'fill-extrusion-height': ['get', 'height'],
-            'fill-extrusion-base': ['get', 'min_height'],
-            'fill-extrusion-opacity': insideBuilding ? 0.15 : 0.01,
-          }}
+          paint={{ 'fill-color': '#000', 'fill-opacity': 0.01 }}
         />
+        {/* 3D extrusion — warm beige, hidden when inside a building */}
         <Layer
-          id={BUILDING_HIGHLIGHT_LAYER}
+          id="3d-buildings-extrusion"
           type="fill-extrusion"
           source-layer="building"
-          filter={highlightFilter}
+          filter={['!', ['has', 'hide_3d']]}
           minzoom={15}
+          layout={{ visibility: insideBuilding ? 'none' : 'visible' }}
           paint={{
-            'fill-extrusion-color': '#ff5722',
-            'fill-extrusion-height': ['get', 'height'],
-            'fill-extrusion-base': ['get', 'min_height'],
+            'fill-extrusion-color': '#f0e6d8',
+            'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10],
+            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
             'fill-extrusion-opacity': 0.8,
           }}
         />
       </Source>
+
+      {/* Selected building: orange outline */}
+      {insideBuilding && (
+        <Source id="building-highlight-src" type="geojson" data={highlightFC}>
+          <Layer
+            id={BUILDING_HIGHLIGHT_LAYER}
+            type="line"
+            paint={{
+              'line-color': '#e8734a',
+              'line-width': 4,
+              'line-opacity': 0.9,
+            }}
+          />
+        </Source>
+      )}
 
       {/* Indoor editing layers (only when inside a building) */}
       {insideBuilding && <IndoorLayers />}

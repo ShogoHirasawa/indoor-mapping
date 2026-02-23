@@ -1,6 +1,6 @@
 import { useCallback, useRef, type RefObject } from 'react';
-import type { MapRef, MapMouseEvent } from 'react-map-gl/mapbox';
-import type mapboxgl from 'mapbox-gl';
+import type { MapRef, MapMouseEvent } from 'react-map-gl/maplibre';
+import type maplibregl from 'maplibre-gl';
 import type { Position, Geometry } from '../types';
 import { useMapStore } from '../store/useMapStore';
 import { STAIR_WIDTH, STAIR_LENGTH } from '../config';
@@ -43,7 +43,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
     (from: Position | null, to: Position | null) => {
       const map = getMap();
       if (!map) return;
-      const src = map.getSource(LAYER_IDS.wallPreview) as mapboxgl.GeoJSONSource | undefined;
+      const src = map.getSource(LAYER_IDS.wallPreview) as maplibregl.GeoJSONSource | undefined;
       if (!src) return;
       if (from && to) {
         src.setData({
@@ -215,7 +215,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         LAYER_IDS.infosHit,
       ].filter((l) => map.getLayer(l));
       const features = map.queryRenderedFeatures(e.point, { layers: hitLayers });
-      const hit = features.find((f: mapboxgl.GeoJSONFeature) => f.properties?.id === selected.id);
+      const hit = features.find((f: maplibregl.MapGeoJSONFeature) => f.properties?.id === selected.id);
       if (hit) {
         isDragging.current = true;
         dragObjectId.current = selected.id;

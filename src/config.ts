@@ -7,7 +7,20 @@ export const FLOORS: FloorDef[] = [
   { index: '2F', elevation: 4, label: '2F' },
 ];
 
-export const DEFAULT_FLOOR_INDEX = 2; // 1F
+export const DEFAULT_FLOOR_INDEX = 0; // 1F (dynamic floors start at index 0)
+
+/** Generate floor definitions from the number of above-ground levels */
+export function generateFloors(aboveGroundLevels: number): FloorDef[] {
+  const floors: FloorDef[] = [];
+  for (let i = 1; i <= aboveGroundLevels; i++) {
+    floors.push({
+      index: `${i}F`,
+      elevation: (i - 1) * FLOOR_HEIGHT,
+      label: `${i}F`,
+    });
+  }
+  return floors;
+}
 
 export const FLOOR_HEIGHT = 4; // metres
 
@@ -22,8 +35,8 @@ export const STAIR_LENGTH = 0.00005;
 
 /** Colour palette */
 export const COLORS = {
-  floor: '#e0e0e0',
-  floorOutline: '#999999',
+  floor: '#f7f4f0',
+  floorOutline: '#999',
   wall: '#333333',
   wallSelected: '#1a73e8',
   wallPreview: '#999999',

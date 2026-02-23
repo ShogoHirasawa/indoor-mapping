@@ -62,7 +62,7 @@ export default function Palette() {
       </div>
 
       {/* Entrance legend — only on 1F */}
-      {currentFloorIdx === 2 && (
+      {currentFloorIdx === 0 && (
         <div className="entrance-legend-inline">
           <div className="panel-title">Legend</div>
           <div className="entrance-legend-row">

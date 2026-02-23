@@ -9,7 +9,7 @@ import type {
   Polygon,
   IndoorObjectProps,
 } from '../types';
-import { FLOORS, DEFAULT_FLOOR_INDEX } from '../config';
+import { DEFAULT_FLOOR_INDEX, FLOOR_HEIGHT, generateFloors } from '../config';
 import { uuid } from '../utils/geometry';
 
 const MAX_UNDO = 50;
@@ -19,6 +19,7 @@ export interface MapState {
   // Building
   buildingId: string | null;
   buildingFootprint: Geometry | null;
+  buildingRenderHeight: number;
   insideBuilding: boolean;
 
   // Floors
@@ -38,7 +39,7 @@ export interface MapState {
   toastMessage: string | null;
 
   // ── Actions ──
-  enterBuilding: (id: string, footprint: Geometry) => void;
+  enterBuilding: (id: string, footprint: Geometry, levels?: number, renderHeight?: number) => void;
   exitBuilding: () => void;
   setFloor: (idx: number) => void;
   setFloorPolygon: (polygon: Polygon) => void;
@@ -68,6 +69,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   // ── Initial state ──
   buildingId: null,
   buildingFootprint: null,
+  buildingRenderHeight: 0,
   insideBuilding: false,
 
   currentFloorIdx: DEFAULT_FLOOR_INDEX,
@@ -84,27 +86,31 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   // ── Actions ──────────────────────────────────────────────
 
-  enterBuilding: (id, footprint) =>
+  enterBuilding: (id, footprint, levels = 1, renderHeight = 0) => {
+    const floorDefs = generateFloors(Math.max(1, levels));
     set({
       buildingId: id,
       buildingFootprint: footprint,
+      buildingRenderHeight: renderHeight || levels * FLOOR_HEIGHT,
       insideBuilding: true,
       currentFloorIdx: DEFAULT_FLOOR_INDEX,
       selectedObjectId: null,
       undoStack: [],
       mode: 'edit',
-      floors: FLOORS.map((f) => ({
+      floors: floorDefs.map((f) => ({
         floorIndex: f.index,
         elevation: f.elevation,
         floorPolygon: null,
         objects: [],
       })),
-    }),
+    });
+  },
 
   exitBuilding: () =>
     set({
       buildingId: null,
       buildingFootprint: null,
+      buildingRenderHeight: 0,
       insideBuilding: false,
       floors: [],
       selectedObjectId: null,
