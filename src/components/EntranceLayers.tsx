@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useCallback } from 'react';
-import { Source, Layer, useMap } from 'react-map-gl/mapbox';
+import { useEffect, useMemo } from 'react';
+import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type { FeatureCollection } from 'geojson';
 import { useMapStore } from '../store/useMapStore';
 import { useEntrance } from '../hooks/useEntrance';
@@ -28,18 +28,12 @@ export default function EntranceLayers() {
     const map = mapInstance?.getMap();
     if (!map) return;
     if (map.hasImage(ICON_ID)) return;
-    (map as any).loadImage(
-      `${import.meta.env.BASE_URL}entrance-icon.png`,
-      (err: unknown, image: HTMLImageElement | ImageBitmap | ImageData | null) => {
-        if (err || !image) {
-          console.error('[Entrance] Failed to load icon:', err);
-          return;
-        }
-        if (!map.hasImage(ICON_ID)) {
-          map.addImage(ICON_ID, image as any);
-        }
-      },
-    );
+    (async () => {
+      try {
+        const resp = await map.loadImage(`${import.meta.env.BASE_URL}entrance-icon.png`);
+        if (!map.hasImage(ICON_ID)) map.addImage(ICON_ID, resp.data);
+      } catch { /* failed to load entrance icon */ }
+    })();
   }, [mapInstance]);
 
   // Fetch entrances when entering a building
@@ -54,14 +48,25 @@ export default function EntranceLayers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insideBuilding, buildingFootprint]);
 
-  // Show/hide based on floor (1F = index 2)
+  // Show/hide based on floor (1F = index 0 in dynamic floors)
   useEffect(() => {
-    if (currentFloorIdx === 2) {
+    if (currentFloorIdx === 0) {
       showEntrances();
     } else {
       hideEntrances();
     }
   }, [currentFloorIdx, showEntrances, hideEntrances]);
+
+  // Keep entrance layer on top of all other layers
+  useEffect(() => {
+    const map = mapInstance?.getMap();
+    if (!map) return;
+    try {
+      if (map.getLayer(LAYER_ID)) {
+        map.moveLayer(LAYER_ID);
+      }
+    } catch { /* layer not yet added */ }
+  });
 
   // Build GeoJSON
   const geojson: FeatureCollection = useMemo(() => {

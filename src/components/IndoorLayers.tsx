@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Source, Layer } from 'react-map-gl/mapbox';
+import { Source, Layer } from 'react-map-gl/maplibre';
 import type { FeatureCollection, Feature } from 'geojson';
 import { useMapStore } from '../store/useMapStore';
 import { COLORS, OBJECT_TYPE_ICON } from '../config';
@@ -109,7 +109,7 @@ export default function IndoorLayers() {
         <Layer
           id={LAYER_IDS.floorOutline}
           type="line"
-          paint={{ 'line-color': COLORS.floorOutline, 'line-width': 2 }}
+          paint={{ 'line-color': COLORS.floorOutline, 'line-width': 0 }}
         />
       </Source>
 
