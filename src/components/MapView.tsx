@@ -17,6 +17,7 @@ import { useEditor } from '../hooks/useEditor';
 import { POI_ICON_MAP } from '../config';
 import IndoorLayers from './IndoorLayers';
 import EntranceLayers from './EntranceLayers';
+import SearchBar from './SearchBar';
 
 const INITIAL_VIEW = {
   longitude: -122.4194,
@@ -152,6 +153,8 @@ export default function MapView() {
         positionOptions={{ enableHighAccuracy: true }}
         trackUserLocation
       />
+
+      {!insideBuilding && <SearchBar />}
 
       {/* Building layers (OpenFreeMap / OpenMapTiles schema) */}
       <Source id="building-src" type="vector" url="https://tiles.openfreemap.org/planet">
