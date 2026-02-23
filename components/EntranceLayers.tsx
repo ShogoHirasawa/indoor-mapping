@@ -30,7 +30,7 @@ export default function EntranceLayers() {
     if (map.hasImage(ICON_ID)) return;
     (async () => {
       try {
-        const resp = await map.loadImage(`${import.meta.env.BASE_URL}entrance-icon.png`);
+        const resp = await map.loadImage('/entrance-icon.png');
         if (!map.hasImage(ICON_ID)) map.addImage(ICON_ID, resp.data);
       } catch { /* failed to load entrance icon */ }
     })();
