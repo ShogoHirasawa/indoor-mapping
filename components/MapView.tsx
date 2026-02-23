@@ -1,3 +1,5 @@
+'use client';
+
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import Map, {
   NavigationControl,
@@ -41,11 +43,10 @@ export default function MapView() {
   // ── Callbacks ──
 
   const loadAllIcons = useCallback(async (map: maplibregl.Map) => {
-    const base = import.meta.env.BASE_URL;
     for (const [iconId, filename] of Object.entries(POI_ICON_MAP)) {
       if (map.hasImage(iconId)) continue;
       try {
-        const resp = await map.loadImage(`${base}${filename}`);
+        const resp = await map.loadImage(`/${filename}`);
         if (!map.hasImage(iconId)) map.addImage(iconId, resp.data);
       } catch { /* ignore */ }
     }
@@ -63,8 +64,7 @@ export default function MapView() {
     map.on('styleimagemissing', async (e: { id: string }) => {
       if (e.id in POI_ICON_MAP) {
         try {
-          const base = import.meta.env.BASE_URL;
-          const resp = await map.loadImage(`${base}${POI_ICON_MAP[e.id]}`);
+          const resp = await map.loadImage(`/${POI_ICON_MAP[e.id]}`);
           if (!map.hasImage(e.id)) map.addImage(e.id, resp.data);
         } catch { /* ignore */ }
       }

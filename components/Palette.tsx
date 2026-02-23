@@ -2,15 +2,13 @@ import { useCallback } from 'react';
 import type { ObjectType } from '../types';
 import { useMapStore } from '../store/useMapStore';
 
-const base = import.meta.env.BASE_URL;
-
 const TOOLS: { type: ObjectType; icon?: string; img?: string }[] = [
   { type: 'Wall', icon: '|' },
-  { type: 'Door', img: `${base}icons/door.png` },
-  { type: 'Stair', img: `${base}icons/stairs.png` },
-  { type: 'Elevator', img: `${base}icons/elevator.png` },
-  { type: 'Restroom', img: `${base}icons/toilet.png` },
-  { type: 'Info', img: `${base}icons/information.png` },
+  { type: 'Door', img: '/icons/door.png' },
+  { type: 'Stair', img: '/icons/stairs.png' },
+  { type: 'Elevator', img: '/icons/elevator.png' },
+  { type: 'Restroom', img: '/icons/toilet.png' },
+  { type: 'Info', img: '/icons/information.png' },
 ];
 
 export default function Palette() {
@@ -67,7 +65,7 @@ export default function Palette() {
           <div className="panel-title">Legend</div>
           <div className="entrance-legend-row">
             <img
-              src={`${import.meta.env.BASE_URL}entrance-icon.png`}
+              src="/entrance-icon.png"
               alt="Entrance"
               className="entrance-legend-icon"
             />
