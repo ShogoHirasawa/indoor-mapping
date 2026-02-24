@@ -1,12 +1,15 @@
 import { useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMapStore } from '../store/useMapStore';
 import { buildExportPayload, downloadJson } from '../utils/exportJson';
+import { createClient } from '@/utils/supabase/client';
 
 interface ToolbarProps {
   onOpenLeaderboard: () => void;
 }
 
 export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
+  const router = useRouter();
   const insideBuilding = useMapStore((s) => s.insideBuilding);
   const mode = useMapStore((s) => s.mode);
   const setMode = useMapStore((s) => s.setMode);
@@ -25,6 +28,13 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
     const payload = buildExportPayload(buildingId, floors);
     downloadJson(payload);
   }, [buildingId, floors]);
+
+  const handleLogout = useCallback(async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  }, [router]);
 
   return (
     <div id="toolbar">
@@ -53,6 +63,10 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
           </button>
         </>
       )}
+
+      <button className="toolbar-btn logout-btn" onClick={handleLogout}>
+        Log Out
+      </button>
     </div>
   );
 }
