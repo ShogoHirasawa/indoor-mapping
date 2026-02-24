@@ -1,8 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+
+type OAuthProvider = 'google' | 'discord' | 'facebook' | 'github';
+
+const OAUTH_PROVIDERS: { id: OAuthProvider; label: string }[] = [
+  { id: 'google', label: 'Google' },
+  { id: 'github', label: 'GitHub' },
+  { id: 'discord', label: 'Discord' },
+  { id: 'facebook', label: 'Facebook' },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,45 +50,78 @@ export default function LoginPage() {
     router.refresh();
   };
 
+  const handleOAuth = useCallback(async (provider: OAuthProvider) => {
+    setError('');
+    const supabase = createClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (oauthError) {
+      setError(oauthError.message);
+    }
+  }, []);
+
   return (
     <div className="login-page">
-      <form className="login-card" onSubmit={handleSubmit}>
+      <div className="login-card">
         <h1 className="login-title">Indoor Mapping</h1>
         <p className="login-subtitle">
           {isSignUp ? 'Create an account' : 'Sign in to continue'}
         </p>
 
-        <label className="login-label">
-          Email
-          <input
-            className="login-input"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            required
-            autoFocus
-          />
-        </label>
+        <div className="oauth-buttons">
+          {OAUTH_PROVIDERS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              className={`oauth-btn oauth-btn--${id}`}
+              onClick={() => handleOAuth(id)}
+            >
+              <span className={`oauth-icon oauth-icon--${id}`} />
+              {label}
+            </button>
+          ))}
+        </div>
 
-        <label className="login-label">
-          Password
-          <input
-            className="login-input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            minLength={6}
-          />
-        </label>
+        <div className="login-divider">
+          <span>or</span>
+        </div>
 
-        {error && <p className="login-error">{error}</p>}
+        <form onSubmit={handleSubmit}>
+          <label className="login-label">
+            Email
+            <input
+              className="login-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+            />
+          </label>
 
-        <button className="login-btn" type="submit" disabled={loading}>
-          {loading ? 'Please wait...' : isSignUp ? 'Sign Up' : 'Log In'}
-        </button>
+          <label className="login-label">
+            Password
+            <input
+              className="login-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+            />
+          </label>
+
+          {error && <p className="login-error">{error}</p>}
+
+          <button className="login-btn" type="submit" disabled={loading}>
+            {loading ? 'Please wait...' : isSignUp ? 'Sign Up' : 'Log In'}
+          </button>
+        </form>
 
         <p className="login-toggle">
           {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
@@ -94,7 +136,7 @@ export default function LoginPage() {
             {isSignUp ? 'Log In' : 'Sign Up'}
           </button>
         </p>
-      </form>
+      </div>
     </div>
   );
 }
