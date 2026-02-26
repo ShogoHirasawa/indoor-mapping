@@ -29,6 +29,8 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
   const isDragging = useRef(false);
   const dragObjectId = useRef<string | null>(null);
   const dragOffset = useRef<Position>([0, 0]);
+  const dragHandleType = useRef<'vertex' | 'midpoint' | null>(null);
+  const dragHandleIndex = useRef(-1);
 
   // ── Store selectors (stable) ──
   const addObject = useMapStore((s) => s.addObject);
@@ -242,6 +244,22 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         const snap = useMapStore.getState().snapEnabled;
         const obj = useMapStore.getState().getObject(dragObjectId.current);
         if (!obj) return;
+
+        // Vertex handle drag
+        if (dragHandleType.current === 'vertex' && obj.type === 'Wall') {
+          const coord = snapCoord(
+            [e.lngLat.lng - dragOffset.current[0], e.lngLat.lat - dragOffset.current[1]],
+            snap,
+          );
+          const ring = [...(obj.geometry as GeoJSON.Polygon).coordinates[0]];
+          const idx = dragHandleIndex.current;
+          ring[idx] = coord;
+          if (idx === 0) ring[ring.length - 1] = coord;
+          updateObject(obj.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+          return;
+        }
+
+        // Whole-object drag
         const newCenter = snapCoord(
           [e.lngLat.lng - dragOffset.current[0], e.lngLat.lat - dragOffset.current[1]],
           snap,
@@ -268,8 +286,8 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
 
   const handleMouseDown = useCallback(
     (e: MapMouseEvent) => {
-      const activeTool = useMapStore.getState().activeTool;
-      if (activeTool) return; // don't drag while placing
+      const tool = useMapStore.getState().activeTool;
+      if (tool) return; // don't drag while placing
 
       const selected = useMapStore.getState().getSelectedObject();
       if (!selected) return;
@@ -277,6 +295,44 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       const map = getMap();
       if (!map) return;
 
+      // --- Check wall vertex / midpoint handles first ---
+      if (selected.type === 'Wall' && map.getLayer(LAYER_IDS.wallHandlesHit)) {
+        const handleHits = map.queryRenderedFeatures(e.point, {
+          layers: [LAYER_IDS.wallHandlesHit],
+        });
+        const match = handleHits.find(
+          (f: maplibregl.MapGeoJSONFeature) => f.properties?.wallId === selected.id,
+        );
+        if (match) {
+          const hType = match.properties?.handleType as string;
+          const idx = Number(match.properties?.index);
+
+          isDragging.current = true;
+          dragObjectId.current = selected.id;
+          map.dragPan.disable();
+
+          if (hType === 'midpoint') {
+            const ring = [...(selected.geometry as GeoJSON.Polygon).coordinates[0]];
+            const a = ring[idx] as Position;
+            const b = ring[idx + 1] as Position;
+            const mid: Position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            ring.splice(idx + 1, 0, mid);
+            updateObject(selected.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+            dragHandleType.current = 'vertex';
+            dragHandleIndex.current = idx + 1;
+            dragOffset.current = [0, 0];
+          } else {
+            dragHandleType.current = 'vertex';
+            dragHandleIndex.current = idx;
+            const ring = (selected.geometry as GeoJSON.Polygon).coordinates[0];
+            const vPos = ring[idx] as Position;
+            dragOffset.current = [e.lngLat.lng - vPos[0], e.lngLat.lat - vPos[1]];
+          }
+          return;
+        }
+      }
+
+      // --- Regular object drag ---
       const hitLayers = [
         LAYER_IDS.wallsHit,
         LAYER_IDS.doorsHit,
@@ -290,12 +346,14 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       if (hit) {
         isDragging.current = true;
         dragObjectId.current = selected.id;
+        dragHandleType.current = null;
+        dragHandleIndex.current = -1;
         const objCenter = getObjectCenter(selected.geometry);
         dragOffset.current = [e.lngLat.lng - objCenter[0], e.lngLat.lat - objCenter[1]];
         map.dragPan.disable();
       }
     },
-    [getMap],
+    [getMap, updateObject],
   );
 
   // ── Mouse up (end drag) ──
@@ -305,6 +363,8 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       if (isDragging.current) {
         isDragging.current = false;
         dragObjectId.current = null;
+        dragHandleType.current = null;
+        dragHandleIndex.current = -1;
         const map = getMap();
         map?.dragPan.enable();
       }

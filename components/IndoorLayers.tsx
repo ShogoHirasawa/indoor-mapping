@@ -11,6 +11,8 @@ export const LAYER_IDS = {
   walls: 'indoor-walls',
   wallsHit: 'indoor-walls-hit',
   wallPreview: 'indoor-wall-preview',
+  wallHandles: 'indoor-wall-handles',
+  wallHandlesHit: 'indoor-wall-handles-hit',
   doors: 'indoor-doors',
   doorsHit: 'indoor-doors-hit',
   stairs: 'indoor-stairs',
@@ -31,6 +33,7 @@ export default function IndoorLayers() {
   const floors = useMapStore((s) => s.floors);
   const currentFloorIdx = useMapStore((s) => s.currentFloorIdx);
   const selectedObjectId = useMapStore((s) => s.selectedObjectId);
+  const activeTool = useMapStore((s) => s.activeTool);
 
   const floor = floors[currentFloorIdx] ?? null;
 
@@ -97,6 +100,39 @@ export default function IndoorLayers() {
   // will update it imperatively through mapRef.
   const wallPreviewFC = useMemo(() => emptyFC(), []);
 
+  // ── Vertex + midpoint handles for selected wall ──
+  const handlesFC: FeatureCollection = useMemo(() => {
+    if (activeTool || !selectedObjectId) return emptyFC();
+    const obj = (floor?.objects ?? []).find((o) => o.id === selectedObjectId);
+    if (!obj || obj.type !== 'Wall') return emptyFC();
+
+    const ring = (obj.geometry as GeoJSON.Polygon).coordinates[0];
+    const features: Feature[] = [];
+
+    for (let i = 0; i < ring.length - 1; i++) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: ring[i] },
+        properties: { handleType: 'vertex', index: i, wallId: obj.id },
+      });
+    }
+
+    for (let i = 0; i < ring.length - 1; i++) {
+      const a = ring[i];
+      const b = ring[i + 1];
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+        },
+        properties: { handleType: 'midpoint', index: i, wallId: obj.id },
+      });
+    }
+
+    return { type: 'FeatureCollection', features };
+  }, [floor?.objects, selectedObjectId, activeTool]);
+
   return (
     <>
       {/* ── Floor fill + outline ── */}
@@ -128,8 +164,8 @@ export default function IndoorLayers() {
             'fill-opacity': [
               'case',
               ['==', ['get', 'selected'], true],
-              0.4,
-              0.7,
+              0.3,
+              0.5,
             ],
           }}
         />
@@ -344,6 +380,41 @@ export default function IndoorLayers() {
           id={LAYER_IDS.infosHit}
           type="circle"
           paint={{ 'circle-radius': 14, 'circle-color': '#000', 'circle-opacity': 0.01 }}
+        />
+      </Source>
+
+      {/* ── Wall vertex / midpoint handles (shown when a wall is selected) ── */}
+      <Source id={LAYER_IDS.wallHandles} type="geojson" data={handlesFC}>
+        <Layer
+          id={`${LAYER_IDS.wallHandles}-midpoints`}
+          type="circle"
+          filter={['==', ['get', 'handleType'], 'midpoint']}
+          paint={{
+            'circle-radius': 5,
+            'circle-color': COLORS.wallSelected,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          }}
+        />
+        <Layer
+          id={`${LAYER_IDS.wallHandles}-vertices`}
+          type="circle"
+          filter={['==', ['get', 'handleType'], 'vertex']}
+          paint={{
+            'circle-radius': 7,
+            'circle-color': COLORS.wallSelected,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          }}
+        />
+        <Layer
+          id={LAYER_IDS.wallHandlesHit}
+          type="circle"
+          paint={{
+            'circle-radius': 14,
+            'circle-color': '#000000',
+            'circle-opacity': 0.01,
+          }}
         />
       </Source>
     </>
