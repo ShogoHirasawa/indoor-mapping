@@ -113,10 +113,28 @@ export default function IndoorLayers() {
         />
       </Source>
 
-      {/* ── Walls ── */}
+      {/* ── Walls (polygon fill + outline) ── */}
       <Source id={LAYER_IDS.walls} type="geojson" data={wallsFC}>
         <Layer
           id={LAYER_IDS.walls}
+          type="fill"
+          paint={{
+            'fill-color': [
+              'case',
+              ['==', ['get', 'selected'], true],
+              COLORS.wallSelected,
+              COLORS.wallFill,
+            ],
+            'fill-opacity': [
+              'case',
+              ['==', ['get', 'selected'], true],
+              0.4,
+              0.7,
+            ],
+          }}
+        />
+        <Layer
+          id={`${LAYER_IDS.walls}-outline`}
           type="line"
           paint={{
             'line-color': [
@@ -125,26 +143,46 @@ export default function IndoorLayers() {
               COLORS.wallSelected,
               COLORS.wall,
             ],
-            'line-width': 4,
+            'line-width': 2,
           }}
         />
-        {/* Wider invisible hit area for selection */}
         <Layer
           id={LAYER_IDS.wallsHit}
-          type="line"
-          paint={{ 'line-color': '#000000', 'line-width': 16, 'line-opacity': 0.01 }}
+          type="fill"
+          paint={{ 'fill-color': '#000000', 'fill-opacity': 0.01 }}
         />
       </Source>
 
-      {/* ── Wall preview (dashed) ── */}
+      {/* ── Wall preview (polygon + outline + vertices) ── */}
       <Source id={LAYER_IDS.wallPreview} type="geojson" data={wallPreviewFC}>
+        <Layer
+          id={`${LAYER_IDS.wallPreview}-fill`}
+          type="fill"
+          filter={['==', ['get', 'kind'], 'fill']}
+          paint={{
+            'fill-color': COLORS.wallPreview,
+            'fill-opacity': 0.15,
+          }}
+        />
         <Layer
           id={LAYER_IDS.wallPreview}
           type="line"
+          filter={['==', ['get', 'kind'], 'outline']}
           paint={{
             'line-color': COLORS.wallPreview,
             'line-width': 3,
             'line-dasharray': [4, 4],
+          }}
+        />
+        <Layer
+          id={`${LAYER_IDS.wallPreview}-vertices`}
+          type="circle"
+          filter={['==', ['get', 'kind'], 'vertex']}
+          paint={{
+            'circle-radius': 5,
+            'circle-color': COLORS.wallPreview,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
           }}
         />
       </Source>

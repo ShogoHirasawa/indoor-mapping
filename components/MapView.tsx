@@ -38,7 +38,7 @@ export default function MapView() {
   const activeTool = useMapStore((s) => s.activeTool);
   const buildingFootprint = useMapStore((s) => s.buildingFootprint);
   const { handleBuildingClick } = useBuilding();
-  const { handleClick, handleMouseMove, handleMouseDown, handleMouseUp } = useEditor(mapRef);
+  const { handleClick, handleDblClick, handleMouseMove, handleMouseDown, handleMouseUp } = useEditor(mapRef);
 
   // ── Callbacks ──
 
@@ -111,6 +111,14 @@ export default function MapView() {
     [insideBuilding, mode, handleMouseUp],
   );
 
+  const onDblClick = useCallback(
+    (e: MapMouseEvent) => {
+      if (!insideBuilding || mode !== 'edit') return;
+      handleDblClick(e);
+    },
+    [insideBuilding, mode, handleDblClick],
+  );
+
   // Hide base style building layers when inside a building
   const BASE_BUILDING_LAYERS = ['building', 'building-top'];
   useEffect(() => {
@@ -140,6 +148,7 @@ export default function MapView() {
       mapStyle="https://tiles.openfreemap.org/styles/bright"
       interactiveLayerIds={mapLoaded ? [BUILDING_LAYER] : []}
       onClick={onClick}
+      onDblClick={onDblClick}
       onMouseMove={onMouseMove}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}

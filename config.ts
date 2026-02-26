@@ -25,6 +25,7 @@ export const COLORS = {
   floor: '#f7f4f0',
   floorOutline: '#999',
   wall: '#333333',
+  wallFill: '#555555',
   wallSelected: '#1a73e8',
   wallPreview: '#999999',
   door: '#d4a017',
