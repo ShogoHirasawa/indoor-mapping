@@ -179,18 +179,26 @@ export default function IndoorLayers() {
 
   return (
     <>
-      {/* ── Floor 3D extrusion (floats by elevation for visual floor-change feedback) ── */}
+      {/* ── Floor: 1F = flat 2D, 2F+ = 3D extrusion (floating) ── */}
       <Source id={LAYER_IDS.floor} type="geojson" data={floorFC}>
-        <Layer
-          id={LAYER_IDS.floor}
-          type="fill-extrusion"
-          paint={{
-            'fill-extrusion-color': COLORS.floor,
-            'fill-extrusion-height': ['+', ['get', 'elevation'], FLOOR_SLAB_THICKNESS],
-            'fill-extrusion-base': ['get', 'elevation'],
-            'fill-extrusion-opacity': 0.95,
-          }}
-        />
+        {currentFloorIdx === 0 ? (
+          <Layer
+            id={LAYER_IDS.floor}
+            type="fill"
+            paint={{ 'fill-color': COLORS.floor, 'fill-opacity': 0.9 }}
+          />
+        ) : (
+          <Layer
+            id={LAYER_IDS.floor}
+            type="fill-extrusion"
+            paint={{
+              'fill-extrusion-color': COLORS.floor,
+              'fill-extrusion-height': ['+', ['get', 'elevation'], FLOOR_SLAB_THICKNESS],
+              'fill-extrusion-base': ['get', 'elevation'],
+              'fill-extrusion-opacity': 0.95,
+            }}
+          />
+        )}
         <Layer
           id={LAYER_IDS.floorOutline}
           type="line"
