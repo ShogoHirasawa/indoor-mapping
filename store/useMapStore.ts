@@ -102,7 +102,11 @@ export const useMapStore = create<MapState>((set, get) => ({
       floors: floorDefs.map((f) => ({
         floorIndex: f.index,
         elevation: f.elevation,
-        floorPolygon: null,
+        floorPolygon: footprint.type === 'Polygon'
+          ? JSON.parse(JSON.stringify(footprint))
+          : footprint.type === 'MultiPolygon'
+            ? { type: 'Polygon' as const, coordinates: JSON.parse(JSON.stringify(footprint.coordinates[0])) }
+            : null,
         objects: [],
       })),
     });
