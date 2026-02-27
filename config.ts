@@ -17,6 +17,9 @@ export function generateFloors(aboveGroundLevels: number): FloorDef[] {
 
 export const FLOOR_HEIGHT = 4; // metres
 
+/** Floor slab thickness for 3D extrusion (metres) */
+export const FLOOR_SLAB_THICKNESS = 2;
+
 /** Grid snap interval in degrees (~5 m at mid-latitudes) */
 export const SNAP_GRID_INTERVAL = 0.00005;
 

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import type { FeatureCollection, Feature } from 'geojson';
 import { useMapStore } from '../store/useMapStore';
-import { COLORS, OBJECT_TYPE_ICON } from '../config';
+import { COLORS, OBJECT_TYPE_ICON, FLOOR_SLAB_THICKNESS } from '../config';
 
 /** Source / layer IDs (exported so the editor can query them) */
 export const LAYER_IDS = {
@@ -179,12 +179,17 @@ export default function IndoorLayers() {
 
   return (
     <>
-      {/* ── Floor fill + outline ── */}
+      {/* ── Floor 3D extrusion (floats by elevation for visual floor-change feedback) ── */}
       <Source id={LAYER_IDS.floor} type="geojson" data={floorFC}>
         <Layer
           id={LAYER_IDS.floor}
-          type="fill"
-          paint={{ 'fill-color': COLORS.floor, 'fill-opacity': 0.9 }}
+          type="fill-extrusion"
+          paint={{
+            'fill-extrusion-color': COLORS.floor,
+            'fill-extrusion-height': ['+', ['get', 'elevation'], FLOOR_SLAB_THICKNESS],
+            'fill-extrusion-base': ['get', 'elevation'],
+            'fill-extrusion-opacity': 0.95,
+          }}
         />
         <Layer
           id={LAYER_IDS.floorOutline}
