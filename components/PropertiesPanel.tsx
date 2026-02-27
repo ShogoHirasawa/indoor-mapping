@@ -45,6 +45,23 @@ export default function PropertiesPanel() {
           geometry: { type: 'Polygon', coordinates: newCoords },
           props: { rotation: targetAngle },
         });
+      } else if (obj.type === 'Passage') {
+        const coords = (obj.geometry as GeoJSON.LineString).coordinates;
+        let cx = 0, cy = 0;
+        for (const p of coords) { cx += p[0]; cy += p[1]; }
+        cx /= coords.length; cy /= coords.length;
+        const rad = (delta * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const newCoords = coords.map((p: number[]) => {
+          const dx = p[0] - cx;
+          const dy = p[1] - cy;
+          return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+        });
+        updateObject(obj.id, {
+          geometry: { type: 'LineString', coordinates: newCoords },
+          props: { rotation: targetAngle },
+        });
       } else {
         updateObject(obj.id, { props: { rotation: targetAngle } });
       }
@@ -57,7 +74,8 @@ export default function PropertiesPanel() {
   // Contextual help text when no object is selected
   let helpText = 'Select a tool from the left panel, then click on the map to place objects.';
   if (activeTool === 'Wall') helpText = 'Click to place vertices. Double-click or click the first point to close the wall polygon.';
-  else if (activeTool === 'Door') helpText = 'Click on an existing wall to place a door.';
+  else if (activeTool === 'Passage') helpText = 'Click to place vertices. Double-click to finish the passage line.';
+  else if (activeTool === 'Door') helpText = 'Click on an existing wall or passage to place a door.';
   else if (activeTool === 'Stair') helpText = 'Click on the floor to place a stair.';
   else if (activeTool === 'Elevator') helpText = 'Click on the floor to place an elevator.';
   else if (activeTool === 'Restroom') helpText = 'Click on the floor to place a restroom.';

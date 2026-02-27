@@ -51,7 +51,12 @@ export interface MapState {
     props?: Partial<IndoorObjectProps>,
   ) => IndoorObject;
   removeObject: (id: string) => void;
-  updateObject: (id: string, updates: { geometry?: Geometry; props?: Partial<IndoorObjectProps> }) => void;
+  updateObject: (
+    id: string,
+    updates: { geometry?: Geometry; props?: Partial<IndoorObjectProps> },
+    options?: { skipUndo?: boolean },
+  ) => void;
+  pushUndoSnapshot: () => void;
   selectObject: (id: string | null) => void;
   undo: () => boolean;
   showToast: (msg: string) => void;
@@ -171,20 +176,40 @@ export const useMapStore = create<MapState>((set, get) => ({
       return { floors, undoStack, selectedObjectId };
     }),
 
-  updateObject: (id, updates) =>
+  updateObject: (id, updates, options) =>
     set((state) => {
       const floors = structuredClone(state.floors);
       const floor = floors[state.currentFloorIdx];
       if (!floor) return {};
       const obj = floor.objects.find((o) => o.id === id);
       if (!obj) return {};
-      const undoStack = [
-        ...state.undoStack,
-        { floorIdx: state.currentFloorIdx, snapshot: structuredClone(state.floors[state.currentFloorIdx].objects) },
-      ].slice(-MAX_UNDO);
+      const undoStack = options?.skipUndo
+        ? state.undoStack
+        : [
+            ...state.undoStack,
+            {
+              floorIdx: state.currentFloorIdx,
+              snapshot: structuredClone(state.floors[state.currentFloorIdx].objects),
+            },
+          ].slice(-MAX_UNDO);
       if (updates.geometry) obj.geometry = updates.geometry;
       if (updates.props) Object.assign(obj.props, updates.props);
       return { floors, undoStack };
+    }),
+
+  pushUndoSnapshot: () =>
+    set((state) => {
+      const floor = state.floors[state.currentFloorIdx];
+      if (!floor) return {};
+      return {
+        undoStack: [
+          ...state.undoStack,
+          {
+            floorIdx: state.currentFloorIdx,
+            snapshot: structuredClone(floor.objects),
+          },
+        ].slice(-MAX_UNDO),
+      };
     }),
 
   selectObject: (id) => set({ selectedObjectId: id }),
@@ -193,15 +218,19 @@ export const useMapStore = create<MapState>((set, get) => ({
     const state = get();
     if (state.undoStack.length === 0) return false;
     const entry = state.undoStack[state.undoStack.length - 1];
+    const prevSelectedId = state.selectedObjectId;
     set((s) => {
       const floors = structuredClone(s.floors);
       const floor = floors[entry.floorIdx];
       if (!floor) return {};
       floor.objects = entry.snapshot;
+      const selectedStillExists =
+        prevSelectedId &&
+        floors.some((f) => f.objects.some((o) => o.id === prevSelectedId));
       return {
         floors,
         undoStack: s.undoStack.slice(0, -1),
-        selectedObjectId: null,
+        selectedObjectId: selectedStillExists ? prevSelectedId : null,
       };
     });
     return true;

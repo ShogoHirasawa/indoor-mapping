@@ -9,6 +9,7 @@ import {
   pointToSegmentDistance,
   rotatePoint,
   centroid,
+  lineStringCenter,
   getObjectCenter,
   translateGeometry,
 } from '../utils/geometry';
@@ -26,6 +27,8 @@ const DBLCLICK_MS = 350;
 export function useEditor(mapRef: RefObject<MapRef | null>) {
   const wallPoints = useRef<Position[]>([]);
   const lastWallClickTime = useRef(0);
+  const passagePoints = useRef<Position[]>([]);
+  const lastPassageClickTime = useRef(0);
   const isDragging = useRef(false);
   const justDragged = useRef(false);
   const dragObjectId = useRef<string | null>(null);
@@ -36,6 +39,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
   // ── Store selectors (stable) ──
   const addObject = useMapStore((s) => s.addObject);
   const updateObject = useMapStore((s) => s.updateObject);
+  const pushUndoSnapshot = useMapStore((s) => s.pushUndoSnapshot);
   const selectObject = useMapStore((s) => s.selectObject);
   const showToast = useMapStore((s) => s.showToast);
   const activeTool = useMapStore((s) => s.activeTool);
@@ -100,6 +104,50 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
     }
   }, [activeTool, setWallPreview]);
 
+  /** Passage preview: LineString from points + cursor, with vertex markers */
+  const setPassagePreview = useCallback(
+    (points: Position[], cursor: Position | null) => {
+      const map = getMap();
+      if (!map) return;
+      const src = map.getSource(LAYER_IDS.passagePreview) as maplibregl.GeoJSONSource | undefined;
+      if (!src) return;
+
+      if (points.length === 0) {
+        src.setData({ type: 'FeatureCollection', features: [] });
+        return;
+      }
+
+      const all = cursor ? [...points, cursor] : [...points];
+      const features: GeoJSON.Feature[] = [];
+
+      if (all.length >= 2) {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: all },
+          properties: { kind: 'line' },
+        });
+      }
+
+      for (const pt of points) {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: pt },
+          properties: { kind: 'vertex' },
+        });
+      }
+
+      src.setData({ type: 'FeatureCollection', features });
+    },
+    [getMap],
+  );
+
+  useEffect(() => {
+    if (activeTool !== 'Passage' && passagePoints.current.length > 0) {
+      passagePoints.current = [];
+      setPassagePreview([], null);
+    }
+  }, [activeTool, setPassagePreview]);
+
   // ── Finalise wall polygon ──
 
   const closeWallPolygon = useCallback(() => {
@@ -131,6 +179,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         if (!map) return;
         const hitLayers = [
           LAYER_IDS.wallsHit,
+          LAYER_IDS.passagesHit,
           LAYER_IDS.doorsHit,
           LAYER_IDS.stairsHit,
           LAYER_IDS.elevatorsHit,
@@ -150,6 +199,9 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         case 'Wall':
           handleWallClick(coord);
           break;
+        case 'Passage':
+          handlePassageClick(coord);
+          break;
         case 'Door':
           handleDoorClick(coord);
           break;
@@ -162,7 +214,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getMap, addObject, selectObject, showToast, setWallPreview],
+    [getMap, addObject, selectObject, showToast, setWallPreview, setPassagePreview],
   );
 
   // ── Wall multi-point polygon ──
@@ -195,7 +247,35 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
     [closeWallPolygon, setWallPreview],
   );
 
-  // ── Double-click handler (close wall polygon + suppress map zoom) ──
+  const finishPassage = useCallback(() => {
+    const pts = passagePoints.current;
+    if (pts.length < 2) return;
+    const geometry: Geometry = { type: 'LineString', coordinates: [...pts] };
+    addObject('Passage', geometry);
+    passagePoints.current = [];
+    setPassagePreview([], null);
+  }, [addObject, setPassagePreview]);
+
+  const handlePassageClick = useCallback(
+    (coord: Position) => {
+      const now = Date.now();
+      const isDoubleClick = now - lastPassageClickTime.current < DBLCLICK_MS;
+      lastPassageClickTime.current = now;
+
+      const pts = passagePoints.current;
+
+      if (isDoubleClick && pts.length >= 2) {
+        finishPassage();
+        return;
+      }
+
+      pts.push(coord);
+      setPassagePreview(pts, coord);
+    },
+    [finishPassage, setPassagePreview],
+  );
+
+  // ── Double-click handler (finish wall polygon / passage line) ──
 
   const handleDblClick = useCallback(
     (e: MapMouseEvent) => {
@@ -203,42 +283,58 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       if (tool === 'Wall' && wallPoints.current.length >= 3) {
         e.preventDefault();
         closeWallPolygon();
+      } else if (tool === 'Passage' && passagePoints.current.length >= 2) {
+        e.preventDefault();
+        finishPassage();
       }
     },
-    [closeWallPolygon],
+    [closeWallPolygon, finishPassage],
   );
 
-  // ── Door (wall snap — iterates polygon edges) ──
+  // ── Door (snap to wall polygon edges or passage lines) ──
 
   const handleDoorClick = useCallback(
     (coord: Position) => {
       const objects = useMapStore.getState().getCurrentObjects();
-      const walls = objects.filter((o) => o.type === 'Wall');
       let bestDist = Infinity;
       let bestNearest: Position | null = null;
-      let bestWallId: string | null = null;
+      let bestLineId: string | null = null;
 
-      for (const wall of walls) {
-        const ring = (wall.geometry as GeoJSON.Polygon).coordinates[0];
-        for (let i = 0; i < ring.length - 1; i++) {
-          const a = ring[i] as Position;
-          const b = ring[i + 1] as Position;
-          const { distance, nearest } = pointToSegmentDistance(coord, a, b);
-          if (distance < bestDist) {
-            bestDist = distance;
-            bestNearest = nearest;
-            bestWallId = wall.id;
+      for (const obj of objects) {
+        if (obj.type === 'Wall') {
+          const ring = (obj.geometry as GeoJSON.Polygon).coordinates[0];
+          for (let i = 0; i < ring.length - 1; i++) {
+            const a = ring[i] as Position;
+            const b = ring[i + 1] as Position;
+            const { distance, nearest } = pointToSegmentDistance(coord, a, b);
+            if (distance < bestDist) {
+              bestDist = distance;
+              bestNearest = nearest;
+              bestLineId = obj.id;
+            }
+          }
+        } else if (obj.type === 'Passage') {
+          const coords = (obj.geometry as GeoJSON.LineString).coordinates;
+          for (let i = 0; i < coords.length - 1; i++) {
+            const a = coords[i] as Position;
+            const b = coords[i + 1] as Position;
+            const { distance, nearest } = pointToSegmentDistance(coord, a, b);
+            if (distance < bestDist) {
+              bestDist = distance;
+              bestNearest = nearest;
+              bestLineId = obj.id;
+            }
           }
         }
       }
 
       const threshold = 0.0001; // ~10 m
       if (bestDist > threshold || !bestNearest) {
-        showToast('Door must be placed on a wall');
+        showToast('Door must be placed on a wall or passage');
         return;
       }
 
-      addObject('Door', { type: 'Point', coordinates: bestNearest }, { wallId: bestWallId! });
+      addObject('Door', { type: 'Point', coordinates: bestNearest }, { wallId: bestLineId! });
     },
     [addObject, showToast],
   );
@@ -258,16 +354,22 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         if (map) map.getCanvas().style.cursor = 'grabbing';
 
         // Vertex handle drag
-        if (dragHandleType.current === 'vertex' && obj.type === 'Wall') {
+        if (dragHandleType.current === 'vertex') {
           const coord = snapCoord(
             [e.lngLat.lng - dragOffset.current[0], e.lngLat.lat - dragOffset.current[1]],
             snap,
           );
-          const ring = [...(obj.geometry as GeoJSON.Polygon).coordinates[0]];
-          const idx = dragHandleIndex.current;
-          ring[idx] = coord;
-          if (idx === 0) ring[ring.length - 1] = coord;
-          updateObject(obj.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+          if (obj.type === 'Wall') {
+            const ring = [...(obj.geometry as GeoJSON.Polygon).coordinates[0]];
+            const idx = dragHandleIndex.current;
+            ring[idx] = coord;
+            if (idx === 0) ring[ring.length - 1] = coord;
+            updateObject(obj.id, { geometry: { type: 'Polygon', coordinates: [ring] } }, { skipUndo: true });
+          } else if (obj.type === 'Passage') {
+            const coords = [...(obj.geometry as GeoJSON.LineString).coordinates];
+            coords[dragHandleIndex.current] = coord;
+            updateObject(obj.id, { geometry: { type: 'LineString', coordinates: coords } }, { skipUndo: true });
+          }
           return;
         }
 
@@ -280,7 +382,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         const dx = newCenter[0] - currentCenter[0];
         const dy = newCenter[1] - currentCenter[1];
         const newGeometry = translateGeometry(obj.geometry, dx, dy);
-        updateObject(obj.id, { geometry: newGeometry as any });
+        updateObject(obj.id, { geometry: newGeometry as any }, { skipUndo: true });
         return;
       }
 
@@ -290,6 +392,13 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         const snap = useMapStore.getState().snapEnabled;
         const coord = snapCoord([e.lngLat.lng, e.lngLat.lat], snap);
         setWallPreview(wallPoints.current, coord);
+        return;
+      }
+
+      if (tool === 'Passage' && passagePoints.current.length > 0) {
+        const snap = useMapStore.getState().snapEnabled;
+        const coord = snapCoord([e.lngLat.lng, e.lngLat.lat], snap);
+        setPassagePreview(passagePoints.current, coord);
         return;
       }
 
@@ -308,8 +417,19 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           }
         }
 
+        if (selected?.type === 'Passage' && map.getLayer(LAYER_IDS.passageHandlesHit)) {
+          const hits = map.queryRenderedFeatures(e.point, {
+            layers: [LAYER_IDS.passageHandlesHit],
+          });
+          if (hits.some((f) => f.properties?.passageId === selected.id)) {
+            canvas.style.cursor = 'move';
+            return;
+          }
+        }
+
         const hitLayers = [
           LAYER_IDS.wallsHit,
+          LAYER_IDS.passagesHit,
           LAYER_IDS.doorsHit,
           LAYER_IDS.stairsHit,
           LAYER_IDS.elevatorsHit,
@@ -330,7 +450,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         canvas.style.cursor = '';
       }
     },
-    [getMap, updateObject, setWallPreview],
+    [getMap, updateObject, setWallPreview, setPassagePreview],
   );
 
   // ── Mouse down (start drag) ──
@@ -358,6 +478,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           const hType = match.properties?.handleType as string;
           const idx = Number(match.properties?.index);
 
+          pushUndoSnapshot();
           isDragging.current = true;
           dragObjectId.current = selected.id;
           map.dragPan.disable();
@@ -369,7 +490,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
             const b = ring[idx + 1] as Position;
             const mid: Position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
             ring.splice(idx + 1, 0, mid);
-            updateObject(selected.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+            updateObject(selected.id, { geometry: { type: 'Polygon', coordinates: [ring] } }, { skipUndo: true });
             dragHandleType.current = 'vertex';
             dragHandleIndex.current = idx + 1;
             dragOffset.current = [0, 0];
@@ -384,9 +505,49 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         }
       }
 
+      // --- Check passage vertex / midpoint handles ---
+      if (selected.type === 'Passage' && map.getLayer(LAYER_IDS.passageHandlesHit)) {
+        const handleHits = map.queryRenderedFeatures(e.point, {
+          layers: [LAYER_IDS.passageHandlesHit],
+        });
+        const match = handleHits.find(
+          (f: maplibregl.MapGeoJSONFeature) => f.properties?.passageId === selected.id,
+        );
+        if (match) {
+          const hType = match.properties?.handleType as string;
+          const idx = Number(match.properties?.index);
+
+          pushUndoSnapshot();
+          isDragging.current = true;
+          dragObjectId.current = selected.id;
+          map.dragPan.disable();
+          map.getCanvas().style.cursor = 'grabbing';
+
+          if (hType === 'midpoint') {
+            const coords = [...(selected.geometry as GeoJSON.LineString).coordinates];
+            const a = coords[idx] as Position;
+            const b = coords[idx + 1] as Position;
+            const mid: Position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            coords.splice(idx + 1, 0, mid);
+            updateObject(selected.id, { geometry: { type: 'LineString', coordinates: coords } }, { skipUndo: true });
+            dragHandleType.current = 'vertex';
+            dragHandleIndex.current = idx + 1;
+            dragOffset.current = [0, 0];
+          } else {
+            dragHandleType.current = 'vertex';
+            dragHandleIndex.current = idx;
+            const coords = (selected.geometry as GeoJSON.LineString).coordinates;
+            const vPos = coords[idx] as Position;
+            dragOffset.current = [e.lngLat.lng - vPos[0], e.lngLat.lat - vPos[1]];
+          }
+          return;
+        }
+      }
+
       // --- Regular object drag ---
       const hitLayers = [
         LAYER_IDS.wallsHit,
+        LAYER_IDS.passagesHit,
         LAYER_IDS.doorsHit,
         LAYER_IDS.stairsHit,
         LAYER_IDS.elevatorsHit,
@@ -396,6 +557,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       const features = map.queryRenderedFeatures(e.point, { layers: hitLayers });
       const hit = features.find((f: maplibregl.MapGeoJSONFeature) => f.properties?.id === selected.id);
       if (hit) {
+        pushUndoSnapshot();
         isDragging.current = true;
         dragObjectId.current = selected.id;
         dragHandleType.current = null;
@@ -406,7 +568,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         map.getCanvas().style.cursor = 'grabbing';
       }
     },
-    [getMap, updateObject],
+    [getMap, updateObject, pushUndoSnapshot],
   );
 
   // ── Mouse up (end drag) ──
@@ -448,6 +610,14 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         );
         updateObject(obj.id, {
           geometry: { type: 'Polygon', coordinates: newCoords },
+          props: { rotation: targetAngle },
+        });
+      } else if (obj.type === 'Passage') {
+        const coords = (obj.geometry as GeoJSON.LineString).coordinates as Position[];
+        const center = lineStringCenter(coords);
+        const newCoords = coords.map((p) => rotatePoint(p, center, delta));
+        updateObject(obj.id, {
+          geometry: { type: 'LineString', coordinates: newCoords },
           props: { rotation: targetAngle },
         });
       } else {

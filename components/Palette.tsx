@@ -2,8 +2,9 @@ import { useCallback } from 'react';
 import type { ObjectType } from '../types';
 import { useMapStore } from '../store/useMapStore';
 
-const TOOLS: { type: ObjectType; icon?: string; img?: string }[] = [
-  { type: 'Wall', icon: '▱' },
+const TOOLS: { type: ObjectType; icon?: string; img?: string; label?: string }[] = [
+  { type: 'Wall', icon: '▱', label: 'Room' },
+  { type: 'Passage', icon: '─', label: 'Passage' },
   { type: 'Door', img: '/icons/door.png' },
   { type: 'Stair', img: '/icons/stairs.png' },
   { type: 'Elevator', img: '/icons/elevator.png' },
@@ -44,7 +45,7 @@ export default function Palette() {
           ) : (
             <span className="tool-icon">{t.icon}</span>
           )}
-          <span>{t.type}</span>
+          <span>{t.label ?? t.type}</span>
         </button>
       ))}
 

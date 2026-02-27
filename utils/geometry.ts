@@ -47,6 +47,14 @@ export function midpoint(coords: Position[]): Position {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 }
 
+/** Center of a LineString (average of all vertices) */
+export function lineStringCenter(coords: Position[]): Position {
+  if (coords.length === 0) return [0, 0];
+  let sx = 0, sy = 0;
+  for (const [x, y] of coords) { sx += x; sy += y; }
+  return [sx / coords.length, sy / coords.length];
+}
+
 /** Rotate a point around a centre by angle (in degrees) */
 export function rotatePoint(point: Position, center: Position, angleDeg: number): Position {
   const rad = (angleDeg * Math.PI) / 180;
@@ -106,7 +114,7 @@ export function getObjectCenter(geometry: Geometry): Position {
   if (geometry.type === 'Point') {
     return geometry.coordinates as Position;
   } else if (geometry.type === 'LineString') {
-    return midpoint(geometry.coordinates as Position[]);
+    return lineStringCenter(geometry.coordinates as Position[]);
   } else if (geometry.type === 'Polygon') {
     return centroid((geometry as Polygon).coordinates);
   }

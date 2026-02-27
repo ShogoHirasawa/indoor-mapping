@@ -13,6 +13,11 @@ export const LAYER_IDS = {
   wallPreview: 'indoor-wall-preview',
   wallHandles: 'indoor-wall-handles',
   wallHandlesHit: 'indoor-wall-handles-hit',
+  passages: 'indoor-passages',
+  passagesHit: 'indoor-passages-hit',
+  passagePreview: 'indoor-passage-preview',
+  passageHandles: 'indoor-passage-handles',
+  passageHandlesHit: 'indoor-passage-handles-hit',
   doors: 'indoor-doors',
   doorsHit: 'indoor-doors-hit',
   stairs: 'indoor-stairs',
@@ -53,7 +58,7 @@ export default function IndoorLayers() {
   }, [floor?.floorPolygon, floor?.elevation]);
 
   // ── Objects split by type ──
-  const { wallsFC, doorsFC, stairsFC, elevatorsFC, restroomsFC, infosFC } = useMemo(() => {
+  const { wallsFC, passagesFC, doorsFC, stairsFC, elevatorsFC, restroomsFC, infosFC } = useMemo(() => {
     const objects = floor?.objects ?? [];
 
     const toFeature = (o: (typeof objects)[number]): Feature => ({
@@ -72,6 +77,10 @@ export default function IndoorLayers() {
       wallsFC: {
         type: 'FeatureCollection' as const,
         features: objects.filter((o) => o.type === 'Wall').map(toFeature),
+      },
+      passagesFC: {
+        type: 'FeatureCollection' as const,
+        features: objects.filter((o) => o.type === 'Passage').map(toFeature),
       },
       doorsFC: {
         type: 'FeatureCollection' as const,
@@ -100,6 +109,8 @@ export default function IndoorLayers() {
   // will update it imperatively through mapRef.
   const wallPreviewFC = useMemo(() => emptyFC(), []);
 
+  const passagePreviewFC = useMemo(() => emptyFC(), []);
+
   // ── Vertex + midpoint handles for selected wall ──
   const handlesFC: FeatureCollection = useMemo(() => {
     if (activeTool || !selectedObjectId) return emptyFC();
@@ -127,6 +138,39 @@ export default function IndoorLayers() {
           coordinates: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
         },
         properties: { handleType: 'midpoint', index: i, wallId: obj.id },
+      });
+    }
+
+    return { type: 'FeatureCollection', features };
+  }, [floor?.objects, selectedObjectId, activeTool]);
+
+  // ── Vertex + midpoint handles for selected passage (LineString) ──
+  const passageHandlesFC: FeatureCollection = useMemo(() => {
+    if (activeTool || !selectedObjectId) return emptyFC();
+    const obj = (floor?.objects ?? []).find((o) => o.id === selectedObjectId);
+    if (!obj || obj.type !== 'Passage') return emptyFC();
+
+    const coords = (obj.geometry as GeoJSON.LineString).coordinates;
+    const features: Feature[] = [];
+
+    for (let i = 0; i < coords.length; i++) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: coords[i] },
+        properties: { handleType: 'vertex', index: i, passageId: obj.id },
+      });
+    }
+
+    for (let i = 0; i < coords.length - 1; i++) {
+      const a = coords[i];
+      const b = coords[i + 1];
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+        },
+        properties: { handleType: 'midpoint', index: i, passageId: obj.id },
       });
     }
 
@@ -224,6 +268,93 @@ export default function IndoorLayers() {
             'circle-color': COLORS.wallPreview,
             'circle-stroke-width': 2,
             'circle-stroke-color': '#ffffff',
+          }}
+        />
+      </Source>
+
+      {/* ── Passages (line) ── */}
+      <Source id={LAYER_IDS.passages} type="geojson" data={passagesFC}>
+        <Layer
+          id={LAYER_IDS.passages}
+          type="line"
+          paint={{
+            'line-color': [
+              'case',
+              ['==', ['get', 'selected'], true],
+              COLORS.passageSelected,
+              COLORS.passage,
+            ],
+            'line-width': [
+              'case',
+              ['==', ['get', 'selected'], true],
+              3,
+              2,
+            ],
+          }}
+        />
+        <Layer
+          id={LAYER_IDS.passagesHit}
+          type="line"
+          paint={{ 'line-color': '#000000', 'line-width': 16, 'line-opacity': 0.01 }}
+        />
+      </Source>
+
+      {/* ── Passage preview (dashed line + vertices) ── */}
+      <Source id={LAYER_IDS.passagePreview} type="geojson" data={passagePreviewFC}>
+        <Layer
+          id={LAYER_IDS.passagePreview}
+          type="line"
+          filter={['==', ['get', 'kind'], 'line']}
+          paint={{
+            'line-color': COLORS.passagePreview,
+            'line-width': 3,
+            'line-dasharray': [4, 4],
+          }}
+        />
+        <Layer
+          id={`${LAYER_IDS.passagePreview}-vertices`}
+          type="circle"
+          filter={['==', ['get', 'kind'], 'vertex']}
+          paint={{
+            'circle-radius': 5,
+            'circle-color': COLORS.passagePreview,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          }}
+        />
+      </Source>
+
+      {/* ── Passage vertex / midpoint handles (shown when a passage is selected) ── */}
+      <Source id={LAYER_IDS.passageHandles} type="geojson" data={passageHandlesFC}>
+        <Layer
+          id={`${LAYER_IDS.passageHandles}-midpoints`}
+          type="circle"
+          filter={['==', ['get', 'handleType'], 'midpoint']}
+          paint={{
+            'circle-radius': 5,
+            'circle-color': COLORS.passageSelected,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          }}
+        />
+        <Layer
+          id={`${LAYER_IDS.passageHandles}-vertices`}
+          type="circle"
+          filter={['==', ['get', 'handleType'], 'vertex']}
+          paint={{
+            'circle-radius': 7,
+            'circle-color': COLORS.passageSelected,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          }}
+        />
+        <Layer
+          id={LAYER_IDS.passageHandlesHit}
+          type="circle"
+          paint={{
+            'circle-radius': 14,
+            'circle-color': '#000000',
+            'circle-opacity': 0.01,
           }}
         />
       </Source>
