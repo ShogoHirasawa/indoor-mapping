@@ -27,6 +27,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
   const wallPoints = useRef<Position[]>([]);
   const lastWallClickTime = useRef(0);
   const isDragging = useRef(false);
+  const justDragged = useRef(false);
   const dragObjectId = useRef<string | null>(null);
   const dragOffset = useRef<Position>([0, 0]);
   const dragHandleType = useRef<'vertex' | 'midpoint' | null>(null);
@@ -115,6 +116,12 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
 
   const handleClick = useCallback(
     (e: MapMouseEvent) => {
+      // Suppress the click that fires immediately after a drag/handle interaction
+      if (justDragged.current) {
+        justDragged.current = false;
+        return;
+      }
+
       const snap = useMapStore.getState().snapEnabled;
       const tool = useMapStore.getState().activeTool;
       const coord = snapCoord([e.lngLat.lng, e.lngLat.lat], snap);
@@ -236,14 +243,19 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
     [addObject, showToast],
   );
 
-  // ── Mouse move (wall preview + drag) ──
+  // ── Mouse move (wall preview + drag + cursor) ──
 
   const handleMouseMove = useCallback(
     (e: MapMouseEvent) => {
+      const map = getMap();
+
+      // ── Active drag ──
       if (isDragging.current && dragObjectId.current) {
         const snap = useMapStore.getState().snapEnabled;
         const obj = useMapStore.getState().getObject(dragObjectId.current);
         if (!obj) return;
+
+        if (map) map.getCanvas().style.cursor = 'grabbing';
 
         // Vertex handle drag
         if (dragHandleType.current === 'vertex' && obj.type === 'Wall') {
@@ -272,14 +284,53 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         return;
       }
 
+      // ── Wall preview while drawing ──
       const tool = useMapStore.getState().activeTool;
       if (tool === 'Wall' && wallPoints.current.length > 0) {
         const snap = useMapStore.getState().snapEnabled;
         const coord = snapCoord([e.lngLat.lng, e.lngLat.lat], snap);
         setWallPreview(wallPoints.current, coord);
+        return;
+      }
+
+      // ── Cursor feedback (idle, no tool) ──
+      if (!tool && map) {
+        const canvas = map.getCanvas();
+        const selected = useMapStore.getState().getSelectedObject();
+
+        if (selected?.type === 'Wall' && map.getLayer(LAYER_IDS.wallHandlesHit)) {
+          const hits = map.queryRenderedFeatures(e.point, {
+            layers: [LAYER_IDS.wallHandlesHit],
+          });
+          if (hits.some((f) => f.properties?.wallId === selected.id)) {
+            canvas.style.cursor = 'move';
+            return;
+          }
+        }
+
+        const hitLayers = [
+          LAYER_IDS.wallsHit,
+          LAYER_IDS.doorsHit,
+          LAYER_IDS.stairsHit,
+          LAYER_IDS.elevatorsHit,
+          LAYER_IDS.restroomsHit,
+          LAYER_IDS.infosHit,
+        ].filter((l) => map.getLayer(l));
+        if (hitLayers.length > 0) {
+          const objectHits = map.queryRenderedFeatures(e.point, { layers: hitLayers });
+          if (objectHits.length > 0) {
+            canvas.style.cursor =
+              selected && objectHits.some((f) => f.properties?.id === selected.id)
+                ? 'move'
+                : 'pointer';
+            return;
+          }
+        }
+
+        canvas.style.cursor = '';
       }
     },
-    [updateObject, setWallPreview],
+    [getMap, updateObject, setWallPreview],
   );
 
   // ── Mouse down (start drag) ──
@@ -310,6 +361,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           isDragging.current = true;
           dragObjectId.current = selected.id;
           map.dragPan.disable();
+          map.getCanvas().style.cursor = 'grabbing';
 
           if (hType === 'midpoint') {
             const ring = [...(selected.geometry as GeoJSON.Polygon).coordinates[0]];
@@ -351,6 +403,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         const objCenter = getObjectCenter(selected.geometry);
         dragOffset.current = [e.lngLat.lng - objCenter[0], e.lngLat.lat - objCenter[1]];
         map.dragPan.disable();
+        map.getCanvas().style.cursor = 'grabbing';
       }
     },
     [getMap, updateObject],
@@ -361,12 +414,16 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
   const handleMouseUp = useCallback(
     (_e: MapMouseEvent) => {
       if (isDragging.current) {
+        justDragged.current = true;
         isDragging.current = false;
         dragObjectId.current = null;
         dragHandleType.current = null;
         dragHandleIndex.current = -1;
         const map = getMap();
-        map?.dragPan.enable();
+        if (map) {
+          map.dragPan.enable();
+          map.getCanvas().style.cursor = '';
+        }
       }
     },
     [getMap],

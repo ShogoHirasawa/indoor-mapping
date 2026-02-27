@@ -179,7 +179,12 @@ export default function IndoorLayers() {
               COLORS.wallSelected,
               COLORS.wall,
             ],
-            'line-width': 2,
+            'line-width': [
+              'case',
+              ['==', ['get', 'selected'], true],
+              3,
+              2,
+            ],
           }}
         />
         <Layer

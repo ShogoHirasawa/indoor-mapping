@@ -130,7 +130,7 @@ export default function MapView() {
     }
   }, [insideBuilding, mapLoaded]);
 
-  const cursor = insideBuilding && mode === 'edit' ? (activeTool ? 'crosshair' : 'default') : '';
+  const cursor = insideBuilding && mode === 'edit' && activeTool ? 'crosshair' : '';
 
   // GeoJSON for the selected building highlight (orange 3D frame)
   const highlightFC: FeatureCollection = useMemo(() => {
