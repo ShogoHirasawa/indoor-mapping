@@ -8,9 +8,15 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', data.user.id)
+        .single();
+      const redirectTo = profile ? next : '/set-username';
+      return NextResponse.redirect(`${origin}${redirectTo}`);
     }
   }
 

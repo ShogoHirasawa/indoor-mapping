@@ -29,15 +29,36 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+  const pathname = request.nextUrl.pathname;
+  const isLoginPage = pathname.startsWith('/login');
+  const isAuthCallback = pathname.startsWith('/auth');
+
+  if (!user) {
+    if (!isLoginPage && !isAuthCallback) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .single();
+
+  const hasProfile = !!profile;
+
+  if (isLoginPage) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
+    url.pathname = hasProfile ? '/' : '/set-username';
     return NextResponse.redirect(url);
   }
 
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  if (pathname === '/' && !hasProfile) {
     const url = request.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = '/set-username';
     return NextResponse.redirect(url);
   }
 

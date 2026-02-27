@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Toolbar from '@/components/Toolbar';
 import Palette from '@/components/Palette';
@@ -13,6 +14,15 @@ import { useKeyboard } from '@/hooks/useKeyboard';
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
 export default function Page() {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) {
+      window.location.href = `/auth/callback?code=${encodeURIComponent(code)}`;
+    }
+  }, [searchParams]);
+
   useKeyboard();
   const [lbOpen, setLbOpen] = useState(false);
   const openLb = useCallback(() => setLbOpen(true), []);

@@ -19,7 +19,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,21 +28,33 @@ export default function LoginPage() {
 
     const supabase = createClient();
 
-    const { error: authError } = isSignUp
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
+    if (isSignUp) {
+      const { error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) {
+        setError(authError.message);
+        setLoading(false);
+        return;
+      }
+
+      setError('');
+      setIsSignUp(false);
+      setLoading(false);
+      alert('確認メールを送信しました。メール内のリンクで認証してからログインしてください。');
+      return;
+    }
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (authError) {
       setError(authError.message);
       setLoading(false);
-      return;
-    }
-
-    if (isSignUp) {
-      setError('');
-      setIsSignUp(false);
-      setLoading(false);
-      alert('Check your email to confirm your account, then log in.');
       return;
     }
 
