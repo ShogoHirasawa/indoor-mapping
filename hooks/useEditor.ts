@@ -1,4 +1,4 @@
-import { useCallback, useRef, type RefObject } from 'react';
+import { useCallback, useRef, useEffect, type RefObject } from 'react';
 import type { MapRef, MapMouseEvent } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import type { Position, Geometry } from '../types';
@@ -8,11 +8,13 @@ import { snapCoord } from '../utils/snap';
 import {
   pointToSegmentDistance,
   rotatePoint,
-  midpoint,
   centroid,
   getObjectCenter,
   translateGeometry,
 } from '../utils/geometry';
+
+const CLOSE_THRESHOLD = 0.00008;
+const DBLCLICK_MS = 350;
 
 /**
  * useEditor — handles placement, selection, drag-move, rotate and delete
@@ -22,55 +24,109 @@ import {
  * does not re-render sources fast enough for interactive preview.
  */
 export function useEditor(mapRef: RefObject<MapRef | null>) {
-  const wallFirstPoint = useRef<Position | null>(null);
+  const wallPoints = useRef<Position[]>([]);
+  const lastWallClickTime = useRef(0);
   const isDragging = useRef(false);
+  const justDragged = useRef(false);
   const dragObjectId = useRef<string | null>(null);
   const dragOffset = useRef<Position>([0, 0]);
+  const dragHandleType = useRef<'vertex' | 'midpoint' | null>(null);
+  const dragHandleIndex = useRef(-1);
 
   // ── Store selectors (stable) ──
   const addObject = useMapStore((s) => s.addObject);
   const updateObject = useMapStore((s) => s.updateObject);
   const selectObject = useMapStore((s) => s.selectObject);
   const showToast = useMapStore((s) => s.showToast);
+  const activeTool = useMapStore((s) => s.activeTool);
 
   // ── Helpers ──
 
   const getMap = useCallback(() => mapRef.current?.getMap() ?? null, [mapRef]);
 
+  /** Build preview features from the current polygon vertices + cursor. */
   const setWallPreview = useCallback(
-    (from: Position | null, to: Position | null) => {
+    (points: Position[], cursor: Position | null) => {
       const map = getMap();
       if (!map) return;
       const src = map.getSource(LAYER_IDS.wallPreview) as maplibregl.GeoJSONSource | undefined;
       if (!src) return;
-      if (from && to) {
-        src.setData({
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              geometry: { type: 'LineString', coordinates: [from, to] },
-              properties: {},
-            },
-          ],
-        });
-      } else {
+
+      if (points.length === 0) {
         src.setData({ type: 'FeatureCollection', features: [] });
+        return;
       }
+
+      const all = cursor ? [...points, cursor] : [...points];
+      const features: GeoJSON.Feature[] = [];
+
+      if (all.length >= 3) {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [[...all, all[0]]] },
+          properties: { kind: 'fill' },
+        });
+      }
+
+      if (all.length >= 2) {
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: all.length >= 3 ? [...all, all[0]] : all,
+          },
+          properties: { kind: 'outline' },
+        });
+      }
+
+      for (const pt of points) {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: pt },
+          properties: { kind: 'vertex' },
+        });
+      }
+
+      src.setData({ type: 'FeatureCollection', features });
     },
     [getMap],
   );
+
+  // Reset wall drawing state when switching away from the Wall tool
+  useEffect(() => {
+    if (activeTool !== 'Wall' && wallPoints.current.length > 0) {
+      wallPoints.current = [];
+      setWallPreview([], null);
+    }
+  }, [activeTool, setWallPreview]);
+
+  // ── Finalise wall polygon ──
+
+  const closeWallPolygon = useCallback(() => {
+    const pts = wallPoints.current;
+    if (pts.length < 3) return;
+    const ring = [...pts, pts[0]];
+    const geometry: Geometry = { type: 'Polygon', coordinates: [ring] };
+    addObject('Wall', geometry);
+    wallPoints.current = [];
+    setWallPreview([], null);
+  }, [addObject, setWallPreview]);
 
   // ── Click handler ──
 
   const handleClick = useCallback(
     (e: MapMouseEvent) => {
+      // Suppress the click that fires immediately after a drag/handle interaction
+      if (justDragged.current) {
+        justDragged.current = false;
+        return;
+      }
+
       const snap = useMapStore.getState().snapEnabled;
-      const activeTool = useMapStore.getState().activeTool;
+      const tool = useMapStore.getState().activeTool;
       const coord = snapCoord([e.lngLat.lng, e.lngLat.lat], snap);
 
-      if (!activeTool) {
-        // Try to select an existing object
+      if (!tool) {
         const map = getMap();
         if (!map) return;
         const hitLayers = [
@@ -90,7 +146,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         return;
       }
 
-      switch (activeTool) {
+      switch (tool) {
         case 'Wall':
           handleWallClick(coord);
           break;
@@ -101,7 +157,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         case 'Elevator':
         case 'Restroom':
         case 'Info':
-          addObject(activeTool, { type: 'Point', coordinates: coord });
+          addObject(tool, { type: 'Point', coordinates: coord });
           break;
       }
     },
@@ -109,27 +165,50 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
     [getMap, addObject, selectObject, showToast, setWallPreview],
   );
 
-  // ── Wall 2-click ──
+  // ── Wall multi-point polygon ──
 
   const handleWallClick = useCallback(
     (coord: Position) => {
-      if (!wallFirstPoint.current) {
-        wallFirstPoint.current = coord;
-        setWallPreview(coord, coord);
-      } else {
-        const geometry: Geometry = {
-          type: 'LineString',
-          coordinates: [wallFirstPoint.current, coord],
-        };
-        addObject('Wall', geometry);
-        wallFirstPoint.current = null;
-        setWallPreview(null, null);
+      const now = Date.now();
+      const isDoubleClick = now - lastWallClickTime.current < DBLCLICK_MS;
+      lastWallClickTime.current = now;
+
+      const pts = wallPoints.current;
+
+      if (isDoubleClick && pts.length >= 3) {
+        closeWallPolygon();
+        return;
       }
+
+      if (pts.length >= 3) {
+        const first = pts[0];
+        const dist = Math.hypot(coord[0] - first[0], coord[1] - first[1]);
+        if (dist < CLOSE_THRESHOLD) {
+          closeWallPolygon();
+          return;
+        }
+      }
+
+      pts.push(coord);
+      setWallPreview(pts, coord);
     },
-    [addObject, setWallPreview],
+    [closeWallPolygon, setWallPreview],
   );
 
-  // ── Door (wall snap) ──
+  // ── Double-click handler (close wall polygon + suppress map zoom) ──
+
+  const handleDblClick = useCallback(
+    (e: MapMouseEvent) => {
+      const tool = useMapStore.getState().activeTool;
+      if (tool === 'Wall' && wallPoints.current.length >= 3) {
+        e.preventDefault();
+        closeWallPolygon();
+      }
+    },
+    [closeWallPolygon],
+  );
+
+  // ── Door (wall snap — iterates polygon edges) ──
 
   const handleDoorClick = useCallback(
     (coord: Position) => {
@@ -140,12 +219,16 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       let bestWallId: string | null = null;
 
       for (const wall of walls) {
-        const [a, b] = (wall.geometry as GeoJSON.LineString).coordinates;
-        const { distance, nearest } = pointToSegmentDistance(coord, a as Position, b as Position);
-        if (distance < bestDist) {
-          bestDist = distance;
-          bestNearest = nearest;
-          bestWallId = wall.id;
+        const ring = (wall.geometry as GeoJSON.Polygon).coordinates[0];
+        for (let i = 0; i < ring.length - 1; i++) {
+          const a = ring[i] as Position;
+          const b = ring[i + 1] as Position;
+          const { distance, nearest } = pointToSegmentDistance(coord, a, b);
+          if (distance < bestDist) {
+            bestDist = distance;
+            bestNearest = nearest;
+            bestWallId = wall.id;
+          }
         }
       }
 
@@ -160,14 +243,35 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
     [addObject, showToast],
   );
 
-  // ── Mouse move (wall preview + drag) ──
+  // ── Mouse move (wall preview + drag + cursor) ──
 
   const handleMouseMove = useCallback(
     (e: MapMouseEvent) => {
+      const map = getMap();
+
+      // ── Active drag ──
       if (isDragging.current && dragObjectId.current) {
         const snap = useMapStore.getState().snapEnabled;
         const obj = useMapStore.getState().getObject(dragObjectId.current);
         if (!obj) return;
+
+        if (map) map.getCanvas().style.cursor = 'grabbing';
+
+        // Vertex handle drag
+        if (dragHandleType.current === 'vertex' && obj.type === 'Wall') {
+          const coord = snapCoord(
+            [e.lngLat.lng - dragOffset.current[0], e.lngLat.lat - dragOffset.current[1]],
+            snap,
+          );
+          const ring = [...(obj.geometry as GeoJSON.Polygon).coordinates[0]];
+          const idx = dragHandleIndex.current;
+          ring[idx] = coord;
+          if (idx === 0) ring[ring.length - 1] = coord;
+          updateObject(obj.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+          return;
+        }
+
+        // Whole-object drag
         const newCenter = snapCoord(
           [e.lngLat.lng - dragOffset.current[0], e.lngLat.lat - dragOffset.current[1]],
           snap,
@@ -180,23 +284,61 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
         return;
       }
 
-      // Wall preview
-      const activeTool = useMapStore.getState().activeTool;
-      if (activeTool === 'Wall' && wallFirstPoint.current) {
+      // ── Wall preview while drawing ──
+      const tool = useMapStore.getState().activeTool;
+      if (tool === 'Wall' && wallPoints.current.length > 0) {
         const snap = useMapStore.getState().snapEnabled;
         const coord = snapCoord([e.lngLat.lng, e.lngLat.lat], snap);
-        setWallPreview(wallFirstPoint.current, coord);
+        setWallPreview(wallPoints.current, coord);
+        return;
+      }
+
+      // ── Cursor feedback (idle, no tool) ──
+      if (!tool && map) {
+        const canvas = map.getCanvas();
+        const selected = useMapStore.getState().getSelectedObject();
+
+        if (selected?.type === 'Wall' && map.getLayer(LAYER_IDS.wallHandlesHit)) {
+          const hits = map.queryRenderedFeatures(e.point, {
+            layers: [LAYER_IDS.wallHandlesHit],
+          });
+          if (hits.some((f) => f.properties?.wallId === selected.id)) {
+            canvas.style.cursor = 'move';
+            return;
+          }
+        }
+
+        const hitLayers = [
+          LAYER_IDS.wallsHit,
+          LAYER_IDS.doorsHit,
+          LAYER_IDS.stairsHit,
+          LAYER_IDS.elevatorsHit,
+          LAYER_IDS.restroomsHit,
+          LAYER_IDS.infosHit,
+        ].filter((l) => map.getLayer(l));
+        if (hitLayers.length > 0) {
+          const objectHits = map.queryRenderedFeatures(e.point, { layers: hitLayers });
+          if (objectHits.length > 0) {
+            canvas.style.cursor =
+              selected && objectHits.some((f) => f.properties?.id === selected.id)
+                ? 'move'
+                : 'pointer';
+            return;
+          }
+        }
+
+        canvas.style.cursor = '';
       }
     },
-    [updateObject, setWallPreview],
+    [getMap, updateObject, setWallPreview],
   );
 
   // ── Mouse down (start drag) ──
 
   const handleMouseDown = useCallback(
     (e: MapMouseEvent) => {
-      const activeTool = useMapStore.getState().activeTool;
-      if (activeTool) return; // don't drag while placing
+      const tool = useMapStore.getState().activeTool;
+      if (tool) return; // don't drag while placing
 
       const selected = useMapStore.getState().getSelectedObject();
       if (!selected) return;
@@ -204,6 +346,45 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       const map = getMap();
       if (!map) return;
 
+      // --- Check wall vertex / midpoint handles first ---
+      if (selected.type === 'Wall' && map.getLayer(LAYER_IDS.wallHandlesHit)) {
+        const handleHits = map.queryRenderedFeatures(e.point, {
+          layers: [LAYER_IDS.wallHandlesHit],
+        });
+        const match = handleHits.find(
+          (f: maplibregl.MapGeoJSONFeature) => f.properties?.wallId === selected.id,
+        );
+        if (match) {
+          const hType = match.properties?.handleType as string;
+          const idx = Number(match.properties?.index);
+
+          isDragging.current = true;
+          dragObjectId.current = selected.id;
+          map.dragPan.disable();
+          map.getCanvas().style.cursor = 'grabbing';
+
+          if (hType === 'midpoint') {
+            const ring = [...(selected.geometry as GeoJSON.Polygon).coordinates[0]];
+            const a = ring[idx] as Position;
+            const b = ring[idx + 1] as Position;
+            const mid: Position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            ring.splice(idx + 1, 0, mid);
+            updateObject(selected.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+            dragHandleType.current = 'vertex';
+            dragHandleIndex.current = idx + 1;
+            dragOffset.current = [0, 0];
+          } else {
+            dragHandleType.current = 'vertex';
+            dragHandleIndex.current = idx;
+            const ring = (selected.geometry as GeoJSON.Polygon).coordinates[0];
+            const vPos = ring[idx] as Position;
+            dragOffset.current = [e.lngLat.lng - vPos[0], e.lngLat.lat - vPos[1]];
+          }
+          return;
+        }
+      }
+
+      // --- Regular object drag ---
       const hitLayers = [
         LAYER_IDS.wallsHit,
         LAYER_IDS.doorsHit,
@@ -217,12 +398,15 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       if (hit) {
         isDragging.current = true;
         dragObjectId.current = selected.id;
+        dragHandleType.current = null;
+        dragHandleIndex.current = -1;
         const objCenter = getObjectCenter(selected.geometry);
         dragOffset.current = [e.lngLat.lng - objCenter[0], e.lngLat.lat - objCenter[1]];
         map.dragPan.disable();
+        map.getCanvas().style.cursor = 'grabbing';
       }
     },
-    [getMap],
+    [getMap, updateObject],
   );
 
   // ── Mouse up (end drag) ──
@@ -230,10 +414,16 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
   const handleMouseUp = useCallback(
     (_e: MapMouseEvent) => {
       if (isDragging.current) {
+        justDragged.current = true;
         isDragging.current = false;
         dragObjectId.current = null;
+        dragHandleType.current = null;
+        dragHandleIndex.current = -1;
         const map = getMap();
-        map?.dragPan.enable();
+        if (map) {
+          map.dragPan.enable();
+          map.getCanvas().style.cursor = '';
+        }
       }
     },
     [getMap],
@@ -250,15 +440,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
       const delta = targetAngle - currentRotation;
       if (delta === 0) return;
 
-      if (obj.type === 'Wall') {
-        const coords = (obj.geometry as GeoJSON.LineString).coordinates as Position[];
-        const mid = midpoint(coords);
-        const newCoords = coords.map((p) => rotatePoint(p as Position, mid, delta));
-        updateObject(obj.id, {
-          geometry: { type: 'LineString', coordinates: newCoords },
-          props: { rotation: targetAngle },
-        });
-      } else if (obj.type === 'Stair') {
+      if (obj.type === 'Wall' || obj.type === 'Stair') {
         const coords = (obj.geometry as GeoJSON.Polygon).coordinates;
         const center = centroid(coords as Position[][]);
         const newCoords = coords.map((ring) =>
@@ -269,7 +451,6 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
           props: { rotation: targetAngle },
         });
       } else {
-        // Point-based (Door / Elevator / Restroom / Info): just update rotation prop
         updateObject(obj.id, { props: { rotation: targetAngle } });
       }
     },
@@ -278,6 +459,7 @@ export function useEditor(mapRef: RefObject<MapRef | null>) {
 
   return {
     handleClick,
+    handleDblClick,
     handleMouseMove,
     handleMouseDown,
     handleMouseUp,
