@@ -2,11 +2,13 @@ import { useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import type { FeatureCollection, Feature } from 'geojson';
 import { useMapStore } from '../store/useMapStore';
-import { COLORS, OBJECT_TYPE_ICON } from '../config';
+import { COLORS, OBJECT_TYPE_ICON, FLOOR_SLAB_THICKNESS } from '../config';
 
 /** Source / layer IDs (exported so the editor can query them) */
 export const LAYER_IDS = {
   floor: 'indoor-floor',
+  floorFill: 'indoor-floor-fill',
+  floorExtrusion: 'indoor-floor-extrusion',
   floorOutline: 'indoor-floor-outline',
   walls: 'indoor-walls',
   wallsHit: 'indoor-walls-hit',
@@ -179,12 +181,24 @@ export default function IndoorLayers() {
 
   return (
     <>
-      {/* ── Floor fill + outline ── */}
+      {/* ── Floor: 1F = flat 2D, 2F+ = 3D extrusion (floating) ── */}
       <Source id={LAYER_IDS.floor} type="geojson" data={floorFC}>
         <Layer
-          id={LAYER_IDS.floor}
+          id={LAYER_IDS.floorFill}
           type="fill"
+          layout={{ visibility: currentFloorIdx === 0 ? 'visible' : 'none' }}
           paint={{ 'fill-color': COLORS.floor, 'fill-opacity': 0.9 }}
+        />
+        <Layer
+          id={LAYER_IDS.floorExtrusion}
+          type="fill-extrusion"
+          layout={{ visibility: currentFloorIdx !== 0 ? 'visible' : 'none' }}
+          paint={{
+            'fill-extrusion-color': COLORS.floor,
+            'fill-extrusion-height': ['+', ['get', 'elevation'], FLOOR_SLAB_THICKNESS],
+            'fill-extrusion-base': ['get', 'elevation'],
+            'fill-extrusion-opacity': 0.95,
+          }}
         />
         <Layer
           id={LAYER_IDS.floorOutline}
