@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useMapStore } from '../store/useMapStore';
 import { buildExportPayload, downloadJson } from '../utils/exportJson';
 import { createClient } from '@/utils/supabase/client';
@@ -10,7 +11,23 @@ interface ToolbarProps {
 
 export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
   const router = useRouter();
+  const [username, setUsername] = useState<string | null>(null);
   const insideBuilding = useMapStore((s) => s.insideBuilding);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+      if (data?.username) setUsername(data.username);
+    };
+    load();
+  }, []);
   const mode = useMapStore((s) => s.mode);
   const setMode = useMapStore((s) => s.setMode);
   const exitBuilding = useMapStore((s) => s.exitBuilding);
@@ -29,15 +46,13 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
     downloadJson(payload);
   }, [buildingId, floors]);
 
-  const handleLogout = useCallback(async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  }, [router]);
-
   return (
     <div id="toolbar">
+      {username && (
+        <Link href="/user" className="toolbar-username" title="ユーザーページへ">
+          {username}
+        </Link>
+      )}
       <button
         className={`toolbar-btn${mode === 'edit' ? ' edit-mode' : ''}`}
         onClick={toggleMode}
@@ -63,10 +78,6 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
           </button>
         </>
       )}
-
-      <button className="toolbar-btn logout-btn" onClick={handleLogout}>
-        Log Out
-      </button>
     </div>
   );
 }
