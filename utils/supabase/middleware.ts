@@ -32,9 +32,10 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isLoginPage = pathname.startsWith('/login');
   const isAuthCallback = pathname.startsWith('/auth');
+  const isPublicPage = pathname === '/';
 
   if (!user) {
-    if (!isLoginPage && !isAuthCallback) {
+    if (!isLoginPage && !isAuthCallback && !isPublicPage) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
       return NextResponse.redirect(url);

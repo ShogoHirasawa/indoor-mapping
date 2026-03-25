@@ -3,6 +3,7 @@ import { useMapStore } from '../store/useMapStore';
 
 export default function PropertiesPanel() {
   const insideBuilding = useMapStore((s) => s.insideBuilding);
+  const mode = useMapStore((s) => s.mode);
   const activeTool = useMapStore((s) => s.activeTool);
   const selectedObjectId = useMapStore((s) => s.selectedObjectId);
   const floors = useMapStore((s) => s.floors);
@@ -14,7 +15,7 @@ export default function PropertiesPanel() {
   const updateObject = useMapStore((s) => s.updateObject);
 
   const floor = floors[currentFloorIdx] ?? null;
-  const obj = floor?.objects.find((o) => o.id === selectedObjectId) ?? null;
+  const obj = floor?.objects?.find((o) => o.id === selectedObjectId) ?? null;
 
   const handleRotate = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +70,7 @@ export default function PropertiesPanel() {
     [obj, updateObject],
   );
 
-  if (!insideBuilding) return null;
+  if (!insideBuilding || mode !== 'edit') return null;
 
   // Contextual help text when no object is selected
   let helpText = 'Select a tool from the left panel, then click on the map to place objects.';

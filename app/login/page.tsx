@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 
 type OAuthProvider = 'google' | 'discord' | 'facebook' | 'github';
@@ -13,13 +13,14 @@ const OAUTH_PROVIDERS: { id: OAuthProvider; label: string }[] = [
   { id: 'facebook', label: 'Facebook' },
 ];
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(searchParams.get('signup') === '1');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +44,7 @@ export default function LoginPage() {
       setError('');
       setIsSignUp(false);
       setLoading(false);
-      alert('確認メールを送信しました。メール内のリンクで認証してからログインしてください。');
+      alert('A confirmation email has been sent. Please verify your email before signing in.');
       return;
     }
 
@@ -150,5 +151,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useMapStore } from '../store/useMapStore';
+import { useIndoorSync } from '../hooks/useIndoorSync';
 import { buildExportPayload, downloadJson } from '../utils/exportJson';
 import { createClient } from '@/utils/supabase/client';
 
@@ -10,15 +10,19 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
-  const router = useRouter();
   const [username, setUsername] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const insideBuilding = useMapStore((s) => s.insideBuilding);
+  const { saveBuilding, isSaving } = useIndoorSync();
+  const setMode = useMapStore((s) => s.setMode);
 
   useEffect(() => {
     const supabase = createClient();
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setIsLoggedIn(true);
+      setMode('edit');
       const { data } = await supabase
         .from('profiles')
         .select('username')
@@ -27,19 +31,10 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
       if (data?.username) setUsername(data.username);
     };
     load();
-  }, []);
-  const mode = useMapStore((s) => s.mode);
-  const setMode = useMapStore((s) => s.setMode);
+  }, [setMode]);
   const exitBuilding = useMapStore((s) => s.exitBuilding);
-  const setTool = useMapStore((s) => s.setTool);
   const floors = useMapStore((s) => s.floors);
   const buildingId = useMapStore((s) => s.buildingId);
-
-  const toggleMode = useCallback(() => {
-    const next = mode === 'browse' ? 'edit' : 'browse';
-    setMode(next);
-    if (next === 'browse') setTool(null);
-  }, [mode, setMode, setTool]);
 
   const handleExport = useCallback(() => {
     const payload = buildExportPayload(buildingId, floors);
@@ -48,17 +43,20 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
 
   return (
     <div id="toolbar">
-      {username && (
-        <Link href="/user" className="toolbar-username" title="ユーザーページへ">
+      {username ? (
+        <Link href="/user" className="toolbar-username" title="User profile">
           {username}
         </Link>
-      )}
-      <button
-        className={`toolbar-btn${mode === 'edit' ? ' edit-mode' : ''}`}
-        onClick={toggleMode}
-      >
-        Mode: {mode === 'edit' ? 'Edit' : 'Browse'}
-      </button>
+      ) : !isLoggedIn ? (
+        <>
+          <Link href="/login" className="toolbar-btn">
+            Log in
+          </Link>
+          <Link href="/login?signup=1" className="toolbar-btn">
+            Sign up
+          </Link>
+        </>
+      ) : null}
 
       {!insideBuilding && (
         <button className="toolbar-btn lb-btn" onClick={onOpenLeaderboard}>
@@ -70,11 +68,22 @@ export default function Toolbar({ onOpenLeaderboard }: ToolbarProps) {
 
       {insideBuilding && (
         <>
+          {isLoggedIn && (
+            <>
+              <button
+                className="toolbar-btn save-btn"
+                onClick={saveBuilding}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button className="toolbar-btn export-btn" onClick={handleExport}>
+                Export JSON
+              </button>
+            </>
+          )}
           <button className="toolbar-btn exit-btn" onClick={exitBuilding}>
             Exit Building
-          </button>
-          <button className="toolbar-btn export-btn" onClick={handleExport}>
-            Export JSON
           </button>
         </>
       )}

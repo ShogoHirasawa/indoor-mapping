@@ -14,12 +14,20 @@ import { uuid } from '../utils/geometry';
 
 const MAX_UNDO = 50;
 
+export interface EnterBuildingOptions {
+  venueId?: string;
+  organizationId?: string;
+  levelIds?: string[];
+}
+
 // ── State shape ──────────────────────────────────────────────
 export interface MapState {
   // Building
   buildingId: string | null;
   buildingFootprint: Geometry | null;
   insideBuilding: boolean;
+  venueId: string | null;
+  organizationId: string | null;
 
   // Floors
   currentFloorIdx: number;
@@ -38,8 +46,9 @@ export interface MapState {
   toastMessage: string | null;
 
   // ── Actions ──
-  enterBuilding: (id: string, footprint: Geometry, levels?: number) => void;
+  enterBuilding: (id: string, footprint: Geometry, levels?: number, options?: EnterBuildingOptions) => void;
   exitBuilding: () => void;
+  setFloorObjects: (floorIdx: number, objects: IndoorObject[]) => void;
   setFloor: (idx: number) => void;
   setFloorPolygon: (polygon: Polygon) => void;
   setMode: (mode: AppMode) => void;
@@ -74,6 +83,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   buildingId: null,
   buildingFootprint: null,
   insideBuilding: false,
+  venueId: null,
+  organizationId: null,
 
   currentFloorIdx: DEFAULT_FLOOR_INDEX,
   floors: [],
@@ -89,17 +100,20 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   // ── Actions ──────────────────────────────────────────────
 
-  enterBuilding: (id, footprint, levels = 1) => {
+  enterBuilding: (id, footprint, levels = 1, options) => {
     const floorDefs = generateFloors(Math.max(1, levels));
-    set({
+    const levelIds = options?.levelIds ?? [];
+    set((state) => ({
       buildingId: id,
       buildingFootprint: footprint,
       insideBuilding: true,
+      venueId: options?.venueId ?? null,
+      organizationId: options?.organizationId ?? null,
       currentFloorIdx: DEFAULT_FLOOR_INDEX,
       selectedObjectId: null,
       undoStack: [],
-      mode: 'edit',
-      floors: floorDefs.map((f) => ({
+      mode: state.mode,
+      floors: floorDefs.map((f, i) => ({
         floorIndex: f.index,
         elevation: f.elevation,
         floorPolygon: footprint.type === 'Polygon'
@@ -108,20 +122,31 @@ export const useMapStore = create<MapState>((set, get) => ({
             ? { type: 'Polygon' as const, coordinates: JSON.parse(JSON.stringify(footprint.coordinates[0])) }
             : null,
         objects: [],
+        levelId: levelIds[i],
       })),
-    });
+    }));
   },
 
   exitBuilding: () =>
-    set({
+    set((state) => ({
       buildingId: null,
       buildingFootprint: null,
       insideBuilding: false,
+      venueId: null,
+      organizationId: null,
       floors: [],
       selectedObjectId: null,
       undoStack: [],
-      mode: 'browse',
+      mode: state.mode === 'edit' ? 'edit' : 'browse',
       activeTool: null,
+    })),
+
+  setFloorObjects: (floorIdx, objects) =>
+    set((state) => {
+      if (floorIdx < 0 || floorIdx >= state.floors.length) return {};
+      const floors = structuredClone(state.floors);
+      floors[floorIdx] = { ...floors[floorIdx], objects: [...objects] };
+      return { floors };
     }),
 
   setFloor: (idx) =>

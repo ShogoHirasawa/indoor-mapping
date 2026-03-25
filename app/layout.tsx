@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import GlobalMembershipEnsurer from '@/components/GlobalMembershipEnsurer';
 
 export const metadata: Metadata = {
   title: 'Indoor Mapping Prototype',
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body>
+        <GlobalMembershipEnsurer />
+        {children}
+      </body>
     </html>
   );
 }
