@@ -45,7 +45,7 @@ export default function SetUsernamePage() {
     const trimmed = username.trim();
     if (!USERNAME_REGEX.test(trimmed)) {
       setError(
-        'ユーザーIDは3〜30文字の英数字・アンダースコアで入力してください。',
+        'Username must be 3–30 characters (letters, numbers, underscores).',
       );
       setLoading(false);
       return;
@@ -66,7 +66,7 @@ export default function SetUsernamePage() {
 
     if (profileError) {
       if (profileError.code === '23505') {
-        setError('このユーザーIDはすでに使われています。');
+        setError('This username is already taken.');
       } else {
         setError(profileError.message);
       }
@@ -82,7 +82,7 @@ export default function SetUsernamePage() {
     return (
       <div className="login-page">
         <div className="login-card">
-          <p className="login-subtitle">読み込み中...</p>
+          <p className="login-subtitle">Loading...</p>
         </div>
       </div>
     );
@@ -93,22 +93,22 @@ export default function SetUsernamePage() {
       <div className="login-card">
         <h1 className="login-title">Indoor Mapping</h1>
         <p className="login-subtitle">
-          ユーザーIDを設定してください
+          Choose a username
           <br />
           <span style={{ fontSize: 12, fontWeight: 400 }}>
-            （ログインのメール・パスワードとは別の、表示用IDです）
+            (This is your public display name, separate from your email)
           </span>
         </p>
 
         <form onSubmit={handleSubmit}>
           <label className="login-label">
-            ユーザーID
+            Username
             <input
               className="login-input"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="3〜30文字の英数字・アンダースコア"
+              placeholder="3–30 characters (letters, numbers, _)"
               required
               minLength={3}
               maxLength={30}
@@ -120,7 +120,7 @@ export default function SetUsernamePage() {
           {error && <p className="login-error">{error}</p>}
 
           <button className="login-btn" type="submit" disabled={loading}>
-            {loading ? '登録中...' : '登録して始める'}
+            {loading ? 'Saving...' : 'Get started'}
           </button>
         </form>
       </div>
