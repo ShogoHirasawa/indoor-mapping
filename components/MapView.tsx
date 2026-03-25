@@ -156,12 +156,16 @@ export default function MapView() {
       cursor={cursor}
       style={{ width: '100%', height: '100%' }}
     >
-      <NavigationControl position="top-left" />
-      <GeolocateControl
-        position="top-left"
-        positionOptions={{ enableHighAccuracy: true }}
-        trackUserLocation
-      />
+      {!insideBuilding && (
+        <>
+          <NavigationControl position="top-left" />
+          <GeolocateControl
+            position="top-left"
+            positionOptions={{ enableHighAccuracy: true }}
+            trackUserLocation
+          />
+        </>
+      )}
 
       {!insideBuilding && <SearchBar />}
 
