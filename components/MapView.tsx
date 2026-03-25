@@ -37,7 +37,7 @@ export default function MapView() {
   const mode = useMapStore((s) => s.mode);
   const activeTool = useMapStore((s) => s.activeTool);
   const buildingFootprint = useMapStore((s) => s.buildingFootprint);
-  const { handleBuildingClick } = useBuilding();
+  const { handleBuildingClick: _handleBuildingClick } = useBuilding();
   const { handleClick, handleDblClick, handleMouseMove, handleMouseDown, handleMouseUp } = useEditor(mapRef);
 
   // ── Callbacks ──
@@ -77,14 +77,26 @@ export default function MapView() {
   const onClick = useCallback(
     (e: MapMouseEvent) => {
       if (!insideBuilding) {
-        handleBuildingClick(e);
+        // Query features at exact click point (1px tolerance) instead of using
+        // e.features which can include buildings from adjacent tiles
+        const map = mapRef.current?.getMap();
+        if (map) {
+          const point = e.point;
+          const features = map.queryRenderedFeatures(
+            [[point.x - 1, point.y - 1], [point.x + 1, point.y + 1]],
+            { layers: [BUILDING_LAYER] },
+          );
+          // Override e.features with our tighter query
+          (e as MapMouseEvent & { features: typeof features }).features = features;
+        }
+        _handleBuildingClick(e);
         return;
       }
       if (mode === 'edit') {
         handleClick(e);
       }
     },
-    [insideBuilding, mode, handleBuildingClick, handleClick],
+    [insideBuilding, mode, _handleBuildingClick, handleClick],
   );
 
   const onMouseMove = useCallback(
