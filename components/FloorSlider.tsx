@@ -4,6 +4,7 @@ import { useBuilding } from '../hooks/useBuilding';
 
 export default function FloorSlider() {
   const insideBuilding = useMapStore((s) => s.insideBuilding);
+  const mode = useMapStore((s) => s.mode);
   const currentFloorIdx = useMapStore((s) => s.currentFloorIdx);
   const floors = useMapStore((s) => s.floors);
   const setFloor = useMapStore((s) => s.setFloor);
@@ -18,7 +19,7 @@ export default function FloorSlider() {
     [setFloor, regenerateFloor],
   );
 
-  if (!insideBuilding || floors.length === 0) return null;
+  if (!insideBuilding || floors.length === 0 || mode !== 'edit') return null;
 
   return (
     <div id="floor-slider-container" className="visible">
