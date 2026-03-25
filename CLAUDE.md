@@ -27,6 +27,6 @@ CGM-style (like OpenStreetMap) indoor mapping platform. Any logged-in user can c
   - Format: `<type>(<scope>): <description>` (e.g. `feat(auth): allow unauthenticated users to browse data`)
   - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`
   - Include body for non-trivial changes explaining **why**, not just what
-- Push to a feature branch, never directly to `main`
+- **Always create a new branch before making any changes** — even without explicit instruction. Never commit directly to `main`
 - Create a PR with a clear summary of changes so third parties can understand the intent
 - Merge via PR after review (squash or merge commit, not rebase)
