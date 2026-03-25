@@ -1,35 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface LeaderboardEntry {
   rank: number;
+  userId: string;
   name: string;
-  avatar: string;
-  buildings: number;
-  floors: number;
-  score: number;
+  features: number;
 }
-
-const DUMMY_DATA: LeaderboardEntry[] = [
-  { rank: 1, name: 'Yuki Tanaka', avatar: 'YT', buildings: 42, floors: 186, score: 12480 },
-  { rank: 2, name: 'Alex Chen', avatar: 'AC', buildings: 38, floors: 154, score: 10920 },
-  { rank: 3, name: 'Maria Garcia', avatar: 'MG', buildings: 35, floors: 142, score: 9870 },
-  { rank: 4, name: 'James Wilson', avatar: 'JW', buildings: 29, floors: 118, score: 8340 },
-  { rank: 5, name: 'Sakura Ito', avatar: 'SI', buildings: 27, floors: 105, score: 7650 },
-  { rank: 6, name: 'David Kim', avatar: 'DK', buildings: 24, floors: 96, score: 6720 },
-  { rank: 7, name: 'Emma Brown', avatar: 'EB', buildings: 21, floors: 88, score: 5940 },
-  { rank: 8, name: 'Ren Nakamura', avatar: 'RN', buildings: 19, floors: 76, score: 5280 },
-  { rank: 9, name: 'Sophie Martin', avatar: 'SM', buildings: 16, floors: 64, score: 4410 },
-  { rank: 10, name: 'Takeshi Yamada', avatar: 'TY', buildings: 14, floors: 52, score: 3780 },
-];
-
-const CURRENT_USER: LeaderboardEntry = {
-  rank: 15,
-  name: 'You',
-  avatar: 'ME',
-  buildings: 8,
-  floors: 28,
-  score: 1960,
-};
 
 type TabKey = 'weekly' | 'monthly' | 'alltime';
 
@@ -46,6 +22,12 @@ function medalForRank(rank: number): string {
   return '';
 }
 
+function avatarInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 interface LeaderboardProps {
   open: boolean;
   onClose: () => void;
@@ -53,6 +35,25 @@ interface LeaderboardProps {
 
 export default function Leaderboard({ open, onClose }: LeaderboardProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('weekly');
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [currentUser, setCurrentUser] = useState<LeaderboardEntry | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    fetch(`/api/leaderboard?period=${activeTab}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setEntries(data.leaderboard ?? []);
+        setCurrentUser(data.currentUser ?? null);
+      })
+      .catch(() => {
+        setEntries([]);
+        setCurrentUser(null);
+      })
+      .finally(() => setLoading(false));
+  }, [open, activeTab]);
 
   if (!open) return null;
 
@@ -84,54 +85,58 @@ export default function Leaderboard({ open, onClose }: LeaderboardProps) {
         <div className="lb-table-header">
           <span className="lb-col-rank">#</span>
           <span className="lb-col-user">User</span>
-          <span className="lb-col-stat">Buildings</span>
-          <span className="lb-col-stat">Floors</span>
-          <span className="lb-col-score">Score</span>
+          <span className="lb-col-score">Features</span>
         </div>
 
         {/* Rows */}
         <div className="lb-list">
-          {DUMMY_DATA.map((entry) => (
-            <div
-              key={entry.rank}
-              className={`lb-row${entry.rank <= 3 ? ' lb-top3' : ''}`}
-            >
-              <span className="lb-col-rank">
-                {medalForRank(entry.rank) || entry.rank}
-              </span>
-              <span className="lb-col-user">
-                <span
-                  className="lb-avatar"
-                  data-rank={entry.rank <= 3 ? entry.rank : undefined}
-                >
-                  {entry.avatar}
+          {loading ? (
+            <div className="lb-loading">Loading...</div>
+          ) : entries.length === 0 ? (
+            <div className="lb-loading">No data yet</div>
+          ) : (
+            entries.map((entry) => (
+              <div
+                key={entry.userId}
+                className={`lb-row${entry.rank <= 3 ? ' lb-top3' : ''}`}
+              >
+                <span className="lb-col-rank">
+                  {medalForRank(entry.rank) || entry.rank}
                 </span>
-                <span className="lb-name">{entry.name}</span>
-              </span>
-              <span className="lb-col-stat">{entry.buildings}</span>
-              <span className="lb-col-stat">{entry.floors}</span>
-              <span className="lb-col-score">
-                {entry.score.toLocaleString()}
-              </span>
-            </div>
-          ))}
+                <span className="lb-col-user">
+                  <span
+                    className="lb-avatar"
+                    data-rank={entry.rank <= 3 ? entry.rank : undefined}
+                  >
+                    {avatarInitials(entry.name)}
+                  </span>
+                  <span className="lb-name">{entry.name}</span>
+                </span>
+                <span className="lb-col-score">
+                  {entry.features.toLocaleString()}
+                </span>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Current user (sticky footer) */}
-        <div className="lb-current-user">
-          <div className="lb-row lb-row-me">
-            <span className="lb-col-rank">{CURRENT_USER.rank}</span>
-            <span className="lb-col-user">
-              <span className="lb-avatar lb-avatar-me">{CURRENT_USER.avatar}</span>
-              <span className="lb-name">{CURRENT_USER.name}</span>
-            </span>
-            <span className="lb-col-stat">{CURRENT_USER.buildings}</span>
-            <span className="lb-col-stat">{CURRENT_USER.floors}</span>
-            <span className="lb-col-score">
-              {CURRENT_USER.score.toLocaleString()}
-            </span>
+        {currentUser && (
+          <div className="lb-current-user">
+            <div className="lb-row lb-row-me">
+              <span className="lb-col-rank">{currentUser.rank}</span>
+              <span className="lb-col-user">
+                <span className="lb-avatar lb-avatar-me">
+                  {avatarInitials(currentUser.name)}
+                </span>
+                <span className="lb-name">{currentUser.name}</span>
+              </span>
+              <span className="lb-col-score">
+                {currentUser.features.toLocaleString()}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
