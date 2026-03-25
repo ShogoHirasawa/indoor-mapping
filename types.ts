@@ -7,6 +7,10 @@ export type ObjectType = 'Wall' | 'Passage' | 'Door' | 'Stair' | 'Elevator' | 'R
 export interface IndoorObjectProps {
   rotation: number;
   wallId?: string;
+  /** DB row id when synced to API */
+  __dbId?: string;
+  /** DB table name: spaces | openings | vertical_connectors | amenities */
+  __dbTable?: 'spaces' | 'openings' | 'vertical_connectors' | 'amenities';
   [key: string]: unknown;
 }
 
@@ -29,6 +33,8 @@ export interface FloorData {
   elevation: number;
   floorPolygon: Polygon | null;
   objects: IndoorObject[];
+  /** DB level id when building is loaded from/saved to API */
+  levelId?: string;
 }
 
 // ---------- Undo ----------
