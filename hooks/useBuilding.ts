@@ -57,6 +57,38 @@ function geometryArea(geom: Geometry): number {
   return Infinity;
 }
 
+/** Squared distance from geometry centroid to a point */
+function centroidDistance(geom: Geometry, point: Position): number {
+  let coords: Position[] = [];
+  if (geom.type === 'Polygon') {
+    coords = geom.coordinates[0] as Position[];
+  } else if (geom.type === 'MultiPolygon') {
+    for (const poly of geom.coordinates) {
+      coords = coords.concat(poly[0] as Position[]);
+    }
+  }
+  if (coords.length === 0) return Infinity;
+  let cx = 0, cy = 0;
+  for (const [x, y] of coords) { cx += x; cy += y; }
+  cx /= coords.length;
+  cy /= coords.length;
+  const dx = cx - point[0];
+  const dy = cy - point[1];
+  return dx * dx + dy * dy;
+}
+
+/** Compute a short centroid key for a polygon (for unique ID within a MultiPolygon) */
+function polygonCentroidKey(coords: Position[][]): string {
+  const ring = coords[0] as Position[];
+  if (ring.length === 0) return '0_0';
+  let cx = 0, cy = 0;
+  for (const [x, y] of ring) { cx += x; cy += y; }
+  cx /= ring.length;
+  cy /= ring.length;
+  // Round to ~1m precision to be stable across tile zoom levels
+  return `${cx.toFixed(5)}_${cy.toFixed(5)}`;
+}
+
 /** Extract the single Polygon containing `point` from a MultiPolygon */
 function pickPolygon(
   geom: Geometry,
@@ -130,19 +162,32 @@ export function useBuilding() {
 
       const clickPt: Position = [e.lngLat.lng, e.lngLat.lat];
 
+      // Filter to features whose geometry actually contains the click point.
+      // Vector tile features can be clipped at tile boundaries, so pointInGeometry
+      // may fail for buildings split across tiles. In that case, pick the feature
+      // whose geometry centroid is closest to the click point instead of blindly
+      // falling back to features[0] (which could be an unrelated building).
       const candidates = features.filter((f) => {
         const geom = f.geometry as Geometry;
         return geom && pointInGeometry(geom, clickPt);
       });
 
-      const feature =
-        candidates.length > 0
-          ? candidates.sort((a, b) => {
-              const areaA = geometryArea(a.geometry as Geometry);
-              const areaB = geometryArea(b.geometry as Geometry);
-              return areaA - areaB;
-            })[0]
-          : features[0];
+      let feature;
+      if (candidates.length > 0) {
+        feature = candidates.sort((a, b) => {
+          const areaA = geometryArea(a.geometry as Geometry);
+          const areaB = geometryArea(b.geometry as Geometry);
+          return areaA - areaB;
+        })[0];
+      } else {
+        // No candidate contains the click point (tile-clipped geometry).
+        // Pick the feature closest to the click point by centroid distance.
+        feature = features.reduce((closest, f) => {
+          const distF = centroidDistance(f.geometry as Geometry, clickPt);
+          const distC = centroidDistance(closest.geometry as Geometry, clickPt);
+          return distF < distC ? f : closest;
+        });
+      }
 
       const rawGeom = feature.geometry as Geometry;
       const footprint = pickPolygon(rawGeom, clickPt);
@@ -151,14 +196,22 @@ export function useBuilding() {
       const renderHeight = rawHeight > 0 ? rawHeight : FLOOR_HEIGHT;
       const levels = Math.max(1, Math.round(renderHeight / FLOOR_HEIGHT));
       const props = feature.properties as Record<string, unknown>;
-      const externalId =
-        feature.id != null
-          ? String(feature.id)
-          : props?.osm_id != null
-            ? String(props.osm_id)
+      // Build a stable external ID.
+      // For MultiPolygon features (OSM relations grouping multiple buildings),
+      // append the centroid of the selected sub-polygon to make each part unique.
+      const baseId =
+        props?.osm_id != null
+          ? String(props.osm_id)
+          : feature.id != null
+            ? String(feature.id)
             : undefined;
+      const externalId =
+        baseId != null && rawGeom.type === 'MultiPolygon' && footprint.type === 'Polygon'
+          ? `${baseId}@${polygonCentroidKey(footprint.coordinates as Position[][])}`
+          : baseId;
       const name =
-        externalId != null ? `Building ${externalId}` : undefined;
+        baseId != null ? `Building ${baseId}` : undefined;
+
 
       if (externalId) {
         const ctx = await getIndoorContext().catch(() => null);
