@@ -142,6 +142,194 @@ export function translateGeometry(geometry: Geometry, dx: number, dy: number): G
   return geometry;
 }
 
+/**
+ * Orthogonalize a polygon — port of iD editor's actionOrthogonalize.
+ * https://github.com/openstreetmap/iD/blob/develop/modules/actions/orthogonalize.js
+ *
+ * Algorithm:
+ * 1. Project lng/lat to local meters (for accurate angle computation).
+ * 2. Remove near-straight vertices (angle within threshold of 180°).
+ * 3. Iteratively nudge remaining vertices toward 90° corners using
+ *    normalized dot product of adjacent edge vectors.
+ * 4. Project straight-segment points onto the nearest orthogonalized edge.
+ * 5. Convert back to lng/lat.
+ */
+export function orthogonalizePolygon(polygon: Polygon): Polygon {
+  const ring = polygon.coordinates[0].slice();
+  // Remove closing vertex
+  if (
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1]
+  ) {
+    ring.pop();
+  }
+  const n = ring.length;
+  if (n < 3) return polygon;
+
+  // --- Projection: lng/lat → local meters ---
+  let cx = 0, cy = 0;
+  for (const [x, y] of ring) { cx += x; cy += y; }
+  cx /= n; cy /= n;
+  const cosLat = Math.cos((cy * Math.PI) / 180);
+  const scaleX = 111320 * cosLat;
+  const scaleY = 110540;
+  const project = (p: number[]): number[] => [(p[0] - cx) * scaleX, (p[1] - cy) * scaleY];
+  const unproject = (p: number[]): number[] => [p[0] / scaleX + cx, p[1] / scaleY + cy];
+
+  // --- Vector helpers (2D, matching iD's geo module) ---
+  const vecSub = (a: number[], b: number[]): number[] => [a[0] - b[0], a[1] - b[1]];
+  const vecAdd = (a: number[], b: number[]): number[] => [a[0] + b[0], a[1] + b[1]];
+  const vecScale = (v: number[], s: number): number[] => [v[0] * s, v[1] * s];
+  const vecLen = (v: number[]): number => Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+  const vecNorm = (v: number[]): number[] => {
+    const l = vecLen(v);
+    return l === 0 ? [0, 0] : [v[0] / l, v[1] / l];
+  };
+  const vecDot = (a: number[], b: number[]): number => a[0] * b[0] + a[1] * b[1];
+  const vecInterp = (a: number[], b: number[], t: number): number[] => [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+  ];
+  // Project point onto closest position on polyline, return projected point
+  const vecProject = (point: number[], polyline: number[][]): number[] | null => {
+    let minDist = Infinity;
+    let best: number[] | null = null;
+    for (let i = 0; i < polyline.length - 1; i++) {
+      const a = polyline[i], b = polyline[i + 1];
+      const ab = vecSub(b, a);
+      const lenSq = vecDot(ab, ab);
+      if (lenSq === 0) continue;
+      let t = vecDot(vecSub(point, a), ab) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      const proj = vecAdd(a, vecScale(ab, t));
+      const d = vecLen(vecSub(point, proj));
+      if (d < minDist) { minDist = d; best = proj; }
+    }
+    return best;
+  };
+
+  // --- Thresholds (matching iD defaults) ---
+  const epsilon = 1e-4;
+  const threshold = 13; // degrees
+  const lowerThreshold = Math.cos((90 - threshold) * Math.PI / 180);
+  const upperThreshold = Math.cos(threshold * Math.PI / 180);
+
+  // Project all points to meters
+  let points = ring.map((p) => project(p));
+
+  // --- Separate corners from straight-segment points ---
+  const cornerIndices: number[] = [];
+  const straightIndices: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = points[(i - 1 + n) % n];
+    const o = points[i];
+    const b = points[(i + 1) % n];
+    const p = vecNorm(vecSub(a, o));
+    const q = vecNorm(vecSub(b, o));
+    const dotp = Math.abs(vecDot(p, q));
+    if (dotp > upperThreshold) {
+      straightIndices.push(i);
+    } else {
+      cornerIndices.push(i);
+    }
+  }
+
+  if (cornerIndices.length < 3) return polygon; // not enough corners
+
+  // Extract corner points for orthogonalization
+  let corners = cornerIndices.map((i) => [...points[i]]);
+  const originalCorners = corners.map((p) => [...p]);
+  const nc = corners.length;
+
+  // --- Iterative orthogonalization (iD's calcMotion) ---
+  const calcMotion = (idx: number): number[] => {
+    const a = corners[(idx - 1 + nc) % nc];
+    const origin = corners[idx];
+    const b = corners[(idx + 1) % nc];
+    const p = vecNorm(vecSub(a, origin));
+    const q = vecNorm(vecSub(b, origin));
+    const scale = 2 * Math.min(
+      vecLen(vecSub(a, origin)),
+      vecLen(vecSub(b, origin)),
+    );
+    const dotp = vecDot(p, q);
+    const val = Math.abs(dotp);
+    if (val < lowerThreshold) {
+      // Nearly orthogonal — nudge toward exact 90°
+      const vec = vecNorm(vecAdd(p, q));
+      return vecScale(vec, 0.1 * dotp * scale);
+    }
+    return [0, 0];
+  };
+
+  const calcScore = (): number => {
+    let score = 0;
+    for (let i = 0; i < nc; i++) {
+      const a = corners[(i - 1 + nc) % nc];
+      const o = corners[i];
+      const b = corners[(i + 1) % nc];
+      const p = vecNorm(vecSub(a, o));
+      const q = vecNorm(vecSub(b, o));
+      const dotp = vecDot(p, q);
+      score += 2 * Math.min(Math.abs(dotp - 1), Math.min(Math.abs(dotp), Math.abs(dotp + 1)));
+    }
+    return score;
+  };
+
+  let bestCorners = corners.map((p) => [...p]);
+  let bestScore = Infinity;
+
+  for (let iter = 0; iter < 1000; iter++) {
+    const motions = corners.map((_, i) => calcMotion(i));
+    for (let j = 0; j < nc; j++) {
+      corners[j] = vecAdd(corners[j], motions[j]);
+    }
+    const score = calcScore();
+    if (score < bestScore) {
+      bestCorners = corners.map((p) => [...p]);
+      bestScore = score;
+    }
+    if (score < epsilon) break;
+  }
+
+  // --- Build result ring ---
+  // Start with orthogonalized corners
+  const resultPoints = new Map<number, number[]>();
+  for (let i = 0; i < cornerIndices.length; i++) {
+    const origIdx = cornerIndices[i];
+    // Interpolate: move from original toward orthogonalized (t=1 = full move)
+    resultPoints.set(origIdx, bestCorners[i]);
+  }
+
+  // Project straight-segment points onto nearest edge of orthogonalized shape
+  const orthoRing = bestCorners.slice();
+  orthoRing.push([...bestCorners[0]]); // close for projection
+  for (const si of straightIndices) {
+    const projected = vecProject(points[si], orthoRing);
+    if (projected) {
+      resultPoints.set(si, projected);
+    } else {
+      resultPoints.set(si, points[si]); // keep original if projection fails
+    }
+  }
+
+  // Rebuild ring in original vertex order
+  const finalRing: Position[] = [];
+  for (let i = 0; i < n; i++) {
+    const pt = resultPoints.get(i);
+    if (pt) {
+      finalRing.push(unproject(pt));
+    } else {
+      finalRing.push(ring[i]);
+    }
+  }
+  // Close ring
+  finalRing.push([...finalRing[0]]);
+
+  return { type: 'Polygon', coordinates: [finalRing] };
+}
+
 /** Empty GeoJSON FeatureCollection */
 export function emptyFC(): GeoJSON.FeatureCollection {
   return { type: 'FeatureCollection', features: [] };
