@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import { useMapStore } from '../store/useMapStore';
+import { orthogonalizePolygon } from '../utils/geometry';
+import type { Polygon } from '../types';
 
 export default function PropertiesPanel() {
   const insideBuilding = useMapStore((s) => s.insideBuilding);
@@ -16,6 +18,12 @@ export default function PropertiesPanel() {
 
   const floor = floors[currentFloorIdx] ?? null;
   const obj = floor?.objects?.find((o) => o.id === selectedObjectId) ?? null;
+
+  const handleOrthogonalize = useCallback(() => {
+    if (!obj || obj.geometry.type !== 'Polygon') return;
+    const orthogonalized = orthogonalizePolygon(obj.geometry as Polygon);
+    updateObject(obj.id, { geometry: orthogonalized });
+  }, [obj, updateObject]);
 
   const handleRotate = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,6 +117,18 @@ export default function PropertiesPanel() {
           <p className="no-selection">{helpText}</p>
         )}
       </div>
+
+      {obj && obj.geometry.type === 'Polygon' && (obj.type === 'Wall' || obj.type === 'Passage') && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E5E0D8)' }}>
+          <button
+            className="toolbar-btn"
+            style={{ width: '100%' }}
+            onClick={handleOrthogonalize}
+          >
+            Orthogonalize
+          </button>
+        </div>
+      )}
 
       <div id="rotate-control">
         <div className="rotate-header">
